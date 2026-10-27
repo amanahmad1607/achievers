@@ -33,8 +33,8 @@ r.post('/otp/send', limiter, wrap(async (q, s) => {
   if (await Student.findOne({ $or: [{ email }, { phone }] })) return s.status(409).json({ error: 'Email or mobile already registered' });
   const ce = code(), cw = code();
   const otp = await Otp.create({ email, phone, emailHash: hash(ce), waHash: hash(cw), expiresAt: new Date(Date.now() + 5 * 60 * 1000) });
-  const S = await getSettings();   // message texts edited by the admin
-  await Promise.all([
+  if (process.env.DEV_OTP_LOG === 'true') console.log(`[DEV] OTPs for ${email}: email ${ce}, WhatsApp ${cw}`);
+  else await Promise.all([
     sendEmail(email, 'Achievers Study Point OTP', fill(S.otp_email, { otp: ce })),
     S.wa_otp_template
       ? sendWaTemplate(phone, S.wa_otp_template, S.wa_otp_lang, cw, S.wa_otp_button === 'yes')
