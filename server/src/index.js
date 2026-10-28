@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import routes from './routes.js';
 import extra from './extra.js';
 import { saveWeekly } from './backup.js';
+import './dns-fix.js';
 
 const app = express();
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
