@@ -163,6 +163,7 @@ function Login({ onLogin, go }) {
 
 function Register({ go }) {
   const [f, setF] = useState({ name: '', email: '', phone: '', password: '', job: JOBS[0], shift: 'F' });
+  const [done, setDone] = useState('');
   const [otp, setOtp] = useState(null);                 // { otpId, emailOtp, waOtp }
   const [msg, setMsg] = useState({ t: '', ok: false });
   const set = k => e => setF({ ...f, [k]: e.target.value });
@@ -172,10 +173,22 @@ function Register({ go }) {
     catch (e) { fail(e); }
   };
   const finish = async () => {
-    try { const d = await api('/auth/register', { method: 'POST', body: { ...f, ...otp } }); setMsg({ t: d.message, ok: true }); setOtp(null); }
+    try { const d = await api('/auth/register', { method: 'POST', body: { ...f, ...otp } }); setDone(d.message); }
     catch (e) { fail(e); }
   };
+    if (done) return (
+    <div className="card auth" style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: 54 }}>✅</div>
+      <h3>Registration submitted</h3>
+      <div role="alert" className="card" style={{ borderLeft: '5px solid var(--ok)', textAlign: 'left' }}>
+        <b>{done}</b><br />
+        <small>Once the admin approves, you can log in. Your seat number is also sent to your WhatsApp.</small>
+      </div>
+      <button className="btn" onClick={() => go('login')}>Go to login</button>
+    </div>
+  );
   return (
+    
     <div className="card auth">
       <h3>Student Registration</h3>
       {!otp ? (<>
