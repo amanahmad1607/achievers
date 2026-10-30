@@ -402,20 +402,29 @@ function PasswordBox() {
 /* ---------------- Admin panel ---------------- */
 function Admin({ isSuper }) {
   const [tab, setTab] = useState('students');
+    const [counts, setCounts] = useState({ pending: 0, feedback: 0 });
+  const refresh = async () => {
+    try {
+      const [p, f] = await Promise.all([api('/admin/pending'), api('/admin/feedback')]);
+      setCounts({ pending: p.length, feedback: f.filter(x => x.status === 'open').length });
+    } catch { /* keep the old numbers */ }
+  };
+  useEffect(() => { refresh(); const t = setInterval(refresh, 30000); return () => clearInterval(t); }, []);
+  const badge = { pending: counts.pending, feedback: counts.feedback };
   const tabs = [['students', 'Students'], ['pending', 'Approvals'], ['map', 'Seat Map'], ['home', '🏠 Home Page'], ['notice', '📢 Notices'], ['feedback', '📝 Feedback'], ['messages', '✉️ Messages'],
     ...(isSuper ? [['backup', '💾 Backups'], ['admins', '👑 Manage Admins']] : [])];
   return (<>
     <div className="tabs">
-      {tabs.map(([k, l]) => <button key={k} className="btn sec" onClick={() => setTab(k)}>{l}</button>)}
+      {tabs.map(([k, l]) => <button key={k} className="btn sec" onClick={() => setTab(k)}>{l}{badge[k] > 0 && <span className="badge">{badge[k]}</span>}</button>)}
       <button className="btn" onClick={() => download('/admin/export.xlsx', 'students.xlsx')}>⬇ Excel</button>
       <button className="btn" onClick={() => download('/admin/export.pdf', 'students.pdf')}>⬇ PDF</button>
     </div>
     {tab === 'students' && <Students />}
-    {tab === 'pending' && <Pending />}
+    {tab === 'pending' && <Pending onChange={refresh} />}
+    {tab === 'feedback' && <FeedbackAdmin onChange={refresh} />}
     {tab === 'map' && <AdminMap />}
     {tab === 'home' && <HomeEditor />}
     {tab === 'notice' && <Notices />}
-    {tab === 'feedback' && <FeedbackAdmin />}
     {tab === 'messages' && <Messages />}
     {tab === 'backup' && isSuper && <Backups />}
     {tab === 'admins' && isSuper && <Admins />}
@@ -504,10 +513,10 @@ function Notices() {
   );
 }
 
-function FeedbackAdmin() {
+function FeedbackAdmin({ onChange }) {
   const [list, setList] = useState([]);
   const [replies, setReplies] = useState({});
-  const load = () => api('/admin/feedback').then(setList);
+  const load = () => api('/admin/feedback').then(l => { setList(l); onChange?.(); });
   useEffect(() => { load(); }, []);
   const reply = async (f, status) => { await api(`/admin/feedback/${f._id}`, { method: 'PATCH', body: { reply: replies[f._id] ?? f.reply, status } }); load(); };
   return (
@@ -558,11 +567,11 @@ function Backups() {
 }
 
 
-function Pending() {
+function Pending({ onChange }) {
   const [rows, setRows] = useState([]);
   const [seats, setSeats] = useState({});
   const [err, setErr] = useState('');
-  const load = async () => setRows(await api('/admin/pending'));
+  const load = async () => { setRows(await api('/admin/pending')); onChange?.(); };
   useEffect(() => { load(); }, []);
   const approve = async s => { try { await api(`/admin/students/${s._id}/approve`, { method: 'POST', body: { seat: seats[s._id] } }); setErr(''); load(); } catch (e) { setErr(e.message); } };
   const reject = async s => { if (confirm('Reject and delete this registration?')) { await api(`/admin/students/${s._id}`, { method: 'DELETE' }); load(); } };
