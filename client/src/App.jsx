@@ -214,6 +214,7 @@ function Register({ go }) {
 }
 
 const hm = m => `${Math.floor(m / 60)}h ${m % 60}m`;
+const greet = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };
 const area = { width: '100%', padding: 10, borderRadius: 8, border: '1px solid var(--line)', background: 'var(--bg)', color: 'var(--text)', font: 'inherit', marginTop: 8 };
 const CATS = ['Complaint', 'Suggestion', 'Facilities (AC, Wi-Fi, water)', 'Noise / Discipline', 'Other'];
 
@@ -253,20 +254,27 @@ function Student() {
         <button className="btn" onClick={() => { sessionStorage.setItem('terms', '1'); setTerms(false); }}>I Agree &amp; Continue</button>
       </div></div>
     )}
-    <div className="card">
-      <h2>Welcome, {me.name}</h2>
-      <p>Seat <b>{me.seat}</b> · {SH[me.shift]} · {me.job}</p>
-      <p>Today: <span className={'pill ' + (me.present ? 'ok' : 'bad')}>{me.present ? 'Present' : 'Absent'}</span>{' '}
-         Fee: <span className={'pill ' + (owes ? 'bad' : 'ok')}>{me.feeState}</span></p>
+     <div className="card profile">
+      <div className="row">
+        {me.photo ? <img className="avatar" src={me.photo} alt="" /> : <div className="avatar">{me.name.trim()[0].toUpperCase()}</div>}
+        <div className="who">
+          <div className="hello">{greet()} 👋</div>
+          <h2>{me.name}</h2>
+          <div className="chips">
+            <span className="chip">🕒 {SH[me.shift]}</span>
+            <span className="chip">🎯 {me.job}</span>
+            <span className={'chip ' + (me.present ? 'good' : 'warn')}><i className="dot" />{me.present ? 'Present today' : 'Absent today'}</span>
+            <span className={'chip ' + (owes ? 'warn' : 'good')}>{owes ? '⚠️' : '✅'} Fee: {me.feeState}</span>
+          </div>
+        </div>
+        <div className="seatbadge"><small>SEAT</small><b>{me.seat}</b></div>
+      </div>
+      <button className="btn" style={{ marginTop: 18 }} onClick={toggle}>{me.checkedInAt ? '⏹ Check Out' : '▶ Check In'}</button>
     </div>
+    <StudyCard me={me} toggle={toggle} />
     {info.notice && <div className="card" style={{ borderLeft: '5px solid var(--gold)' }}><b>📢 Notice board</b><p style={{ whiteSpace: 'pre-line' }}>{info.notice}</p></div>}
     {owes && <div className="card" style={{ borderLeft: '5px solid var(--bad)' }}>💰 <b>Fee reminder:</b> {me.feeState}. Please pay at the desk.</div>}
     {me.mustChange && <div className="card" style={{ borderLeft: '5px solid var(--gold)' }}>🔑 <b>Your password was reset by the admin.</b> Please change it below to a password only you know.</div>}
-    <div className="card">
-      <h3>⏱ Study Tracker</h3>
-      <p>Today <b>{hm(me.todayMinutes)}</b> · This month <b>{hm(me.monthMinutes)}</b> · Streak <b>🔥 {me.streak} days</b></p>
-      <button className="btn" onClick={toggle}>{me.checkedInAt ? 'Check Out' : 'Check In'}</button>
-    </div>
     <Leaderboard />
     <FeeHistory me={me} />
     <IdCard me={me} reload={load} />
@@ -278,13 +286,48 @@ function Student() {
   </>);
 }
 
+function StudyCard({ me, toggle }) {
+  const GOAL = 8 * 60, R = 52, C = 2 * Math.PI * R;               // daily goal: 8 hours
+  const pct = Math.min(1, me.todayMinutes / GOAL), live = !!me.checkedInAt;
+  return (
+    <div className="card studycard">
+      <div className="ring">
+        <svg viewBox="0 0 120 120">
+          <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#f2b705" /><stop offset="1" stopColor="#22c55e" /></linearGradient></defs>
+          <circle cx="60" cy="60" r={R} className="trk" />
+          <circle cx="60" cy="60" r={R} className="bar" strokeDasharray={C} strokeDashoffset={C * (1 - pct)} transform="rotate(-90 60 60)" />
+        </svg>
+        <div className="mid"><b>{hm(me.todayMinutes)}</b><small>of 8h goal</small></div>
+      </div>
+      <div className="info">
+        <h3>⏱ Study Tracker</h3>
+        <div className="mini">
+          <div><small>This month</small><b>{hm(me.monthMinutes)}</b></div>
+          <div><small>Study streak</small><b>🔥 {me.streak} days</b></div>
+          <div><small>Goal reached</small><b>{Math.round(pct * 100)}%</b></div>
+        </div>
+        <button className={'btn' + (live ? ' stop' : '')} onClick={toggle}>{live ? '⏹ Check Out' : '▶ Check In'}</button>
+        {live && <span className="live"><i className="dot" /> Studying now</span>}
+      </div>
+    </div>
+  );
+}
+
 function Leaderboard() {
   const [rows, setRows] = useState([]);
   useEffect(() => { api('/leaderboard').then(setRows); }, []);
-  const medals = ['🥇', '🥈', '🥉', '4.', '5.'];
+  const medals = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'], max = rows[0]?.minutes || 1;
   return (
-    <div className="card"><h3>🏆 Top Achievers This Month</h3>
-      {rows.length ? rows.map((r, i) => <div key={i}>{medals[i]} {r.name}{r.me ? ' (you)' : ''} - {hm(r.minutes)}</div>) : 'Check in to appear here!'}
+    <div className="card board"><h3>🏆 Top Achievers This Month</h3>
+      {rows.length ? rows.map((r, i) => (
+        <div key={i} className={'rank' + (r.me ? ' me' : '')}>
+          <span className="medal">{medals[i]}</span>
+          <div className="nm">
+            <div className="top"><b>{r.name}{r.me ? ' (you)' : ''}</b><span>{hm(r.minutes)}</span></div>
+            <div className="meter"><i style={{ width: Math.max(4, (r.minutes / max) * 100) + '%' }} /></div>
+          </div>
+        </div>
+      )) : <p className="hint">Check in to appear here!</p>}
     </div>
   );
 }
@@ -577,6 +620,7 @@ const FIELDS = [
   ['password_reset', 'WhatsApp message after a password reset. Use {{name}} and {{password}}', 3],
   ['otp_email', 'Email OTP text. Must contain {{otp}}', 3],
   ['otp_whatsapp', 'WhatsApp OTP text, used only when no template name is set below. Must contain {{otp}}', 3],
+  ['receipt_terms', 'Terms & Conditions printed at the bottom of fee receipts', 5],
 ];
 
 function Messages() {

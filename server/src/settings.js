@@ -7,6 +7,7 @@ export const DEFAULTS = {
   password_reset: 'Hello {{name}}, your Achievers Study Point password was reset. Temporary password: {{password}}',
   otp_email: 'Your Achievers Study Point OTP is {{otp}}. It is valid for 5 minutes.',
   otp_whatsapp: 'Your Achievers Study Point OTP is {{otp}}. It is valid for 5 minutes.',
+    receipt_terms: '1. Fees once paid are not refundable.\n2. The monthly fee must be paid before the 5th of every month.\n3. Seats are not transferable.\n4. Please keep this receipt for your records.',
   notice: '',            // notice board text shown to students
   fee_amount: '600',     // monthly fee printed on receipts (Rs.)
   wa_otp_template: '',   // name of the template approved by Meta; leave empty to send plain text
