@@ -37,5 +37,9 @@ export const Feedback = model('Feedback', new Schema({
   studentId: Schema.Types.ObjectId, name: String, seat: Number, cat: String, msg: String,
   reply: { type: String, default: '' }, status: { type: String, enum: ['open', 'resolved'], default: 'open' },
 }, { timestamps: true }));
+export const Slide = model('Slide', new Schema({
+  image: String,                                    // JPEG data URL
+  caption: { type: String, default: '' }, order: { type: Number, default: 0 },
+}, { timestamps: true }));
 export const Setting = model('Setting', new Schema({ _id: String, value: String }));
 export const Counter = model('Counter', new Schema({ _id: String, n: Number }));

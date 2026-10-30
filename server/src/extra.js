@@ -2,7 +2,7 @@ import { Router } from 'express';
 import PDFDocument from 'pdfkit';
 import { fileURLToPath } from 'url';
 import QRCode from 'qrcode';
-import { Student, Feedback, Setting } from './models.js';
+import { Student, Feedback, Setting, Slide } from './models.js';
 import { need } from './auth.js';
 import { sendWhatsApp } from './notify.js';
 import { getSettings } from './settings.js';
@@ -245,5 +245,37 @@ r.put('/admin/home', adm, wrap(async (q, s) => {
   }
   s.json(await getHome());
 }));
+
+/* ---------- Home page carousel (photos and captions managed by the admin) ---------- */
+const MAX_SLIDES = 8;
+r.get('/public/slides', wrap(async (q, s) => s.json(await Slide.find({}, '-image').sort('order createdAt'))));
+r.get('/public/slides/:id/image', wrap(async (q, s) => {
+  const sl = await Slide.findById(q.params.id, 'image');
+  const m = sl && /^data:image\/jpeg;base64,(.+)$/.exec(sl.image);
+  if (!m) return s.sendStatus(404);
+  s.set('Cache-Control', 'public, max-age=86400').type('image/jpeg').send(Buffer.from(m[1], 'base64'));
+}));
+r.post('/admin/slides', adm, wrap(async (q, s) => {
+  const image = String(q.body.image || '');
+  if (!/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image) || image.length > 700000) return s.status(400).json({ error: 'Please choose a valid photo' });
+  if ((await Slide.countDocuments()) >= MAX_SLIDES) return s.status(400).json({ error: `You can keep up to ${MAX_SLIDES} slides. Delete one first.` });
+  const last = await Slide.findOne().sort('-order');
+  const sl = await Slide.create({ image, caption: String(q.body.caption || '').trim().slice(0, 120), order: (last?.order ?? 0) + 1 });
+  s.status(201).json({ _id: sl._id });
+}));
+r.patch('/admin/slides/:id', adm, wrap(async (q, s) => {
+  await Slide.updateOne({ _id: q.params.id }, { caption: String(q.body.caption || '').trim().slice(0, 120) });
+  s.json({ ok: true });
+}));
+r.post('/admin/slides/:id/move', adm, wrap(async (q, s) => {
+  const all = await Slide.find({}, '_id').sort('order createdAt');
+  const i = all.findIndex(x => String(x._id) === q.params.id), j = i + (q.body.dir === 'up' ? -1 : 1);
+  if (i >= 0 && j >= 0 && j < all.length) {
+    [all[i], all[j]] = [all[j], all[i]];
+    await Promise.all(all.map((x, k) => Slide.updateOne({ _id: x._id }, { order: k })));
+  }
+  s.json({ ok: true });
+}));
+r.delete('/admin/slides/:id', adm, wrap(async (q, s) => { await Slide.deleteOne({ _id: q.params.id }); s.sendStatus(204); }));
 
 export default r;

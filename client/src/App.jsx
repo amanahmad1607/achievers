@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, download } from './api.js';
 import SeatMap from './SeatMap.jsx';
 
@@ -49,18 +49,118 @@ const SOC = {
   tg: ['Telegram', '#229ed9', <path d="M21 4L3 11l6 2 2 6 3-4 5 3z" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />],
 };
 
+function Carousel({ slides, go }) {
+  const [i, setI] = useState(0);
+  const [hold, setHold] = useState(false);
+  const touch = useRef(0);
+  const n = slides.length;
+  const step = d => setI(x => (x + d + n) % n);
+  useEffect(() => {
+    if (hold || n < 2) return;
+    const t = setInterval(() => setI(x => (x + 1) % n), 5000);       // next photo every 5 seconds
+    return () => clearInterval(t);
+  }, [hold, n]);
+  return (
+    <div className="carousel" onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)}
+      onTouchStart={e => { touch.current = e.touches[0].clientX; }}
+      onTouchEnd={e => { const dx = e.changedTouches[0].clientX - touch.current; if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1); }}>
+      {slides.map((s, k) => (
+        <div key={s._id} className={'slide' + (k === i ? ' on' : '')}>
+          <img src={`/api/public/slides/${s._id}/image`} alt={s.caption} loading={k === 0 ? 'eager' : 'lazy'} />
+        </div>))}
+      <div className="shade" />
+      <div className="content">
+        <div className="eyebrow">Achievers Study Point</div>
+        <h2 key={i} className="cap">{slides[i].caption || 'Welcome to Achievers Study Point'}</h2>
+        <div>
+          <button className="btn" onClick={() => go('register')}>Register for a Seat</button>
+          <button className="btn sec" onClick={() => go('login')}>Login</button>
+        </div>
+      </div>
+      {n > 1 && <>
+        <button className="arrow l" onClick={() => step(-1)} aria-label="Previous photo">‹</button>
+        <button className="arrow r" onClick={() => step(1)} aria-label="Next photo">›</button>
+        <div className="dots">{slides.map((_, k) => <button key={k} className={k === i ? 'on' : ''} onClick={() => setI(k)} aria-label={'Photo ' + (k + 1)} />)}</div>
+      </>}
+    </div>
+  );
+}
+
+function resizeBanner(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas'); c.width = 1920; c.height = 720;
+        const k = Math.max(1920 / img.width, 720 / img.height), w = img.width * k, h = img.height * k;
+        c.getContext('2d').drawImage(img, (1920 - w) / 2, (720 - h) / 2, w, h);
+        resolve(c.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = reject; img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function Slides() {
+  const [list, setList] = useState([]);
+  const [pic, setPic] = useState(null);                 // the photo chosen, already resized
+  const [caption, setCaption] = useState('');
+  const [caps, setCaps] = useState({});                 // captions being edited
+  const [key, setKey] = useState(0);                    // resets the file box after adding
+  const [msg, setMsg] = useState({ t: '', ok: false });
+  const load = () => api('/public/slides').then(setList);
+  useEffect(() => { load(); }, []);
+  const pick = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try { setPic(await resizeBanner(f)); setMsg({ t: '', ok: false }); } catch { setMsg({ t: 'This file could not be read as a photo.', ok: false }); }
+  };
+  const add = async () => {
+    try { await api('/admin/slides', { method: 'POST', body: { image: pic, caption } }); setPic(null); setCaption(''); setKey(k => k + 1); setMsg({ t: 'Slide added to the home page.', ok: true }); load(); }
+    catch (e) { setMsg({ t: e.message, ok: false }); }
+  };
+  const act = async (id, path, method, body) => { try { await api(`/admin/slides/${id}${path}`, { method, body }); load(); } catch (e) { setMsg({ t: e.message, ok: false }); } };
+  return (
+    <div className="card"><h3>🖼 Home page carousel</h3>
+      <p className="hint">These photos slide automatically on the home page, each with its caption. Use wide photos. They are cropped to a wide banner. Up to 8 slides.</p>
+      <label>Photo</label><input key={key} type="file" accept="image/*" onChange={pick} />
+      {pic && <img src={pic} alt="Preview" style={{ width: '100%', maxWidth: 420, borderRadius: 10, marginTop: 8 }} />}
+      <label>Caption</label><input value={caption} maxLength={120} onChange={e => setCaption(e.target.value)} placeholder="e.g. Silent, air-conditioned study hall" />
+      <button className="btn" disabled={!pic} onClick={add}>Add slide</button>
+      <div className={'msg ' + (msg.ok ? 'ok-msg' : '')}>{msg.t}</div>
+      <div className="slidelist">
+        <h4>Current slides ({list.length}/8)</h4>
+        {list.length === 0 && <p className="hint">No slides yet. The home page shows the plain blue banner until you add one.</p>}
+        {list.map((s, k) => (
+          <div className="row" key={s._id}>
+            <img src={`/api/public/slides/${s._id}/image`} alt="" />
+            <input value={caps[s._id] ?? s.caption} onChange={e => setCaps({ ...caps, [s._id]: e.target.value })} maxLength={120} />
+            <button className="pill ok" onClick={() => act(s._id, '', 'PATCH', { caption: caps[s._id] ?? s.caption })}>Save caption</button>
+            <button className="pill ok" disabled={k === 0} onClick={() => act(s._id, '/move', 'POST', { dir: 'up' })}>↑</button>
+            <button className="pill ok" disabled={k === list.length - 1} onClick={() => act(s._id, '/move', 'POST', { dir: 'down' })}>↓</button>
+            <button className="pill bad" onClick={() => confirm('Delete this slide?') && act(s._id, '', 'DELETE')}>Delete</button>
+          </div>))}
+      </div>
+    </div>
+  );
+}
+
 function Home({ go }) {
-  const [h, setH] = useState(null);
-  useEffect(() => { api('/public/home').then(setH).catch(() => {}); }, []);
+    const [h, setH] = useState(null);
+    const [slides, setSlides] = useState([]);
+    useEffect(() => { api('/public/home').then(setH).catch(() => {}); api('/public/slides').then(setSlides).catch(() => {}); }, []);
   if (!h) return <p>Loading…</p>;
   const q = encodeURIComponent(h.address);
   return (<>
-    <div className="hero">
-      <h2>Welcome to Achievers <span>Study Point</span></h2>
-      <p>A calm, focused place for competitive exam aspirants. Register, get approved and make every study hour count.</p>
-      <button className="btn" onClick={() => go('register')}>Register for a Seat</button>
-      <button className="btn sec" onClick={() => go('login')}>Login</button>
-    </div>
+    {slides.length ? <Carousel slides={slides} go={go} /> : (
+      <div className="hero">
+        <h2>Welcome to Achievers <span>Study Point</span></h2>
+        <p>A calm, focused place for competitive exam aspirants. Register, get approved and make every study hour count.</p>
+        <button className="btn" onClick={() => go('register')}>Register for a Seat</button>
+        <button className="btn sec" onClick={() => go('login')}>Login</button>
+      </div>
+    )}
     <div className="stats">
       <div className="stat"><small>Total seats</small><b>{h.totalSeats}</b></div>
       <div className="stat"><small>Seats available now</small><b>{h.freeSeats}</b></div>
@@ -411,7 +511,7 @@ function Admin({ isSuper }) {
   };
   useEffect(() => { refresh(); const t = setInterval(refresh, 30000); return () => clearInterval(t); }, []);
   const badge = { pending: counts.pending, feedback: counts.feedback };
-  const tabs = [['students', 'Students'], ['pending', 'Approvals'], ['map', 'Seat Map'], ['home', '🏠 Home Page'], ['notice', '📢 Notices'], ['feedback', '📝 Feedback'], ['messages', '✉️ Messages'],
+  const tabs = [['students', 'Students'], ['pending', 'Approvals'], ['map', 'Seat Map'], ['home', '🏠 Home Page'], ['carousel', '🖼 Carousel'], ['notice', '📢 Notices'], ['feedback', '📝 Feedback'], ['messages', '✉️ Messages'],
     ...(isSuper ? [['backup', '💾 Backups'], ['admins', '👑 Manage Admins']] : [])];
   return (<>
     <div className="tabs">
@@ -424,6 +524,7 @@ function Admin({ isSuper }) {
     {tab === 'feedback' && <FeedbackAdmin onChange={refresh} />}
     {tab === 'map' && <AdminMap />}
     {tab === 'home' && <HomeEditor />}
+    {tab === 'carousel' && <Slides />}
     {tab === 'notice' && <Notices />}
     {tab === 'messages' && <Messages />}
     {tab === 'backup' && isSuper && <Backups />}

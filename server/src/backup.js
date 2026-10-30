@@ -1,9 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { Admin, Student, Feedback, Setting, Counter } from './models.js';
+import { Admin, Student, Feedback, Setting, Counter, Slide } from './models.js';
 
 const DIR = process.env.BACKUP_DIR || path.resolve('backups');
-const MODELS = { admins: Admin, students: Student, feedback: Feedback, settings: Setting, counters: Counter };
+const MODELS = { admins: Admin, students: Student, feedback: Feedback, settings: Setting, counters: Counter, slides: Slide };
 const NAME = /^backup-[\w-]+\.json$/;
 
 export async function makeBackup() {
