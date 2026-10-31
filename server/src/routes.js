@@ -34,12 +34,16 @@ r.post('/otp/send', limiter, wrap(async (q, s) => {
   const ce = code(), cw = code();
   const otp = await Otp.create({ email, phone, emailHash: hash(ce), waHash: hash(cw), expiresAt: new Date(Date.now() + 5 * 60 * 1000) });
   if (process.env.DEV_OTP_LOG === 'true') console.log(`[DEV] OTPs for ${email}: email ${ce}, WhatsApp ${cw}`);
-  else await Promise.all([
-    sendEmail(email, 'Achievers Study Point OTP', fill(S.otp_email, { otp: ce })),
-    S.wa_otp_template
-      ? sendWaTemplate(phone, S.wa_otp_template, S.wa_otp_lang, cw, S.wa_otp_button === 'yes')
-      : sendWhatsApp(phone, fill(S.otp_whatsapp, { otp: cw })),
-  ]);
+  else {
+    const S = await getSettings();
+    const results = await Promise.allSettled([
+      sendEmail(email, 'Achievers Study Point OTP', fill(S.otp_email, { otp: ce })),
+      S.wa_otp_template
+        ? sendWaTemplate(phone, S.wa_otp_template, S.wa_otp_lang, cw, S.wa_otp_button === 'yes')
+        : sendWhatsApp(phone, fill(S.otp_whatsapp, { otp: cw })),
+    ]);
+    results.forEach((x, i) => { if (x.status === 'rejected') console.error(i === 0 ? 'Email OTP failed:' : 'WhatsApp OTP failed:', x.reason); });
+  }
   s.json({ otpId: otp._id });
 }));
 

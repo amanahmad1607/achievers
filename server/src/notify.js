@@ -28,5 +28,10 @@ export async function sendWhatsApp(phone, text) {
     headers: { Authorization: `Bearer ${process.env.WA_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'text', text: { body: text } }),
   });
-  if (!r.ok) throw new Error('WhatsApp send failed');
+
+  if (!r.ok) {
+    const detail = await r.text();
+    console.error('WhatsApp API response:', r.status, detail);
+    throw new Error('WhatsApp send failed: ' + r.status);
+  }
 }
