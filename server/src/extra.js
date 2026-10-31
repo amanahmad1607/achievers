@@ -84,18 +84,52 @@ export function receiptPdf(res, st, p, info) {
   doc.rect(0, 0, W, 10).fill(NAVY); doc.rect(0, 10, W, 3).fill(GOLD);
 
   // brand block
-  doc.circle(64, 66, 24).fill(GOLD);
-  doc.font('B').fontSize(26).fillColor(NAVY); T('A', 64 - doc.widthOfString('A') / 2, 49);
-  doc.font('B').fontSize(19).fillColor(NAVY); T('Achievers Study Point', 100, 44);
-  doc.font('R').fontSize(8.5).fillColor(MUTE);
-  T('Self-study hall for competitive exam aspirants', 100, 67);
-  T(info.address || '', 100, 80, { width: 290 });
-  T([info.phone, info.email].filter(Boolean).join('   |   '), 100, 92, { width: 290 });
+doc.circle(64, 66, 24).fill(GOLD);
+
+doc.font('B').fontSize(26).fillColor(NAVY);
+T('A', 64 - doc.widthOfString('A') / 2, 49);
+
+doc.font('B').fontSize(19).fillColor(NAVY);
+T('Achievers Study Point', 100, 44);
+
+doc.font('R').fontSize(8.5).fillColor(MUTE);
+T('Self-study hall for competitive exam aspirants', 100, 67);
+
+// Address with automatic wrapping
+const address = info.address || '';
+
+doc.font('R').fontSize(8).fillColor(MUTE);
+
+const addressY = 80;
+const addressOptions = {
+  width: 290,
+  lineBreak: true,
+  lineGap: 1
+};
+
+doc.text(address, 100, addressY, addressOptions);
+
+// Calculate actual address height
+const addressHeight = doc.heightOfString(address, addressOptions);
+
+// Contact details below address
+const contact = [info.phone, info.email]
+  .filter(Boolean)
+  .join('   |   ');
+
+const contactY = addressY + addressHeight + 3;
+
+doc.font('R').fontSize(8).fillColor(MUTE);
+
+doc.text(contact, 100, contactY, {
+  width: 290,
+  lineBreak: true
+});
 
   // title block
   doc.font('B').fontSize(30).fillColor(NAVY); T('RECEIPT', W - 295, 40, { width: 255, align: 'right', characterSpacing: 3 });
   doc.font('M').fontSize(11).fillColor(GOLDD); T('No. ' + (p.receiptNo || '-'), W - 295, 78, { width: 255, align: 'right' });
-  doc.moveTo(40, 116).lineTo(W - 40, 116).lineWidth(1).strokeColor(LINE).stroke();
+  
 
   // two info boxes
   const box = (x, y, w, h, title) => {
@@ -127,7 +161,14 @@ export function receiptPdf(res, st, p, info) {
   doc.font('R').fontSize(8).fillColor(MUTE); T(`Seat ${st.seat}, ${SH[st.shift]} shift`, 80, 329);
   doc.font('R').fontSize(9.5).fillColor(INK); T(forMonth, 345, 320);
   doc.font('M').fontSize(10).fillColor(INK); T(money(info.amount), 440, 320, { width: 105, align: 'right' });
-  doc.moveTo(40, 352).lineTo(W - 40, 352).lineWidth(1).strokeColor(LINE).stroke();
+  // Divider dynamically positioned below address and contact details
+const dividerY = Math.max(116, contactY + 18);
+
+doc.moveTo(40, dividerY)
+  .lineTo(W - 40, dividerY)
+  .lineWidth(1)
+  .strokeColor(LINE)
+  .stroke();
 
   // amount in words + totals
   doc.font('R').fontSize(8).fillColor(MUTE); T('AMOUNT IN WORDS', 40, 374, { characterSpacing: 1 });
