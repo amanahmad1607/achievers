@@ -10,6 +10,7 @@ import { canSeat, nextSeat } from './seats.js';
 import { sendEmail, sendWhatsApp, sendWaTemplate } from './notify.js';
 import { DEFAULTS, getSettings, fill } from './settings.js';
 import { feeInfo, studyInfo } from './stats.js';
+import { clockIn, clockOut } from './attendance.js';
 
 const r = Router();
 const SH = { M: 'Morning', E: 'Evening', F: 'Full Day' };
@@ -22,29 +23,30 @@ const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 const wrap = fn => (q, s, n) => fn(q, s, n).catch(e => { console.error(e); s.status(500).json({ error: 'Server error' }); });
 const pub = s => { const o = s.toObject({ flattenMaps: true }); delete o.passwordHash; return o; };
 const paidNow = s => s.payments.some(p => p.month === month());
-const row = s => ({ ...pub(s), ...feeInfo(s), ...studyInfo(s), present: s.presentOn.includes(today()) });
+const row = s => ({ ...pub(s), ...feeInfo(s), ...studyInfo(s), present: !!s.checkedInAt, attended: s.presentOn.includes(today()) });
 const adm = need('admin', 'super');
 const sup = need('super');
 
 /* ---------- Registration with email + WhatsApp OTP ---------- */
 r.post('/otp/send', limiter, wrap(async (q, s) => {
   const email = String(q.body.email || '').toLowerCase().trim(), phone = last10(q.body.phone);
+  const wantWa = q.body.whatsapp === true;                      // WhatsApp verification is optional
   if (!/^\S+@\S+\.\S+$/.test(email) || phone.length < 10) return s.status(400).json({ error: 'Valid email and 10-digit WhatsApp number required' });
   if (await Student.findOne({ $or: [{ email }, { phone }] })) return s.status(409).json({ error: 'Email or mobile already registered' });
-  const ce = code(), cw = code();
-  const otp = await Otp.create({ email, phone, emailHash: hash(ce), waHash: hash(cw), expiresAt: new Date(Date.now() + 5 * 60 * 1000) });
-  if (process.env.DEV_OTP_LOG === 'true') console.log(`[DEV] OTPs for ${email}: email ${ce}, WhatsApp ${cw}`);
+  const ce = code(), cw = wantWa ? code() : null, S = await getSettings();   // message texts edited by the admin
+  const otp = await Otp.create({ email, phone, emailHash: hash(ce), waHash: cw && hash(cw), expiresAt: new Date(Date.now() + 5 * 60 * 1000) });
+  let waSent = false;
+  if (process.env.DEV_OTP_LOG === 'true') { console.log(`[DEV] OTPs for ${email}: email ${ce}${cw ? ', WhatsApp ' + cw : ''}`); waSent = !!cw; }   // local testing only
   else {
-    const S = await getSettings();
-    const results = await Promise.allSettled([
-      sendEmail(email, 'Achievers Study Point OTP', fill(S.otp_email, { otp: ce })),
-      S.wa_otp_template
-        ? sendWaTemplate(phone, S.wa_otp_template, S.wa_otp_lang, cw, S.wa_otp_button === 'yes')
-        : sendWhatsApp(phone, fill(S.otp_whatsapp, { otp: cw })),
-    ]);
-    results.forEach((x, i) => { if (x.status === 'rejected') console.error(i === 0 ? 'Email OTP failed:' : 'WhatsApp OTP failed:', x.reason); });
+    await sendEmail(email, 'Achievers Study Point OTP', fill(S.otp_email, { otp: ce }));
+    if (cw) {
+      try {
+        await (S.wa_otp_template ? sendWaTemplate(phone, S.wa_otp_template, S.wa_otp_lang, cw, S.wa_otp_button === 'yes') : sendWhatsApp(phone, fill(S.otp_whatsapp, { otp: cw })));
+        waSent = true;
+      } catch (e) { console.error('WhatsApp OTP failed:', e.message); }   // a WhatsApp problem never blocks registration
+    }
   }
-  s.json({ otpId: otp._id });
+  s.json({ otpId: otp._id, waSent });
 }));
 
 r.post('/auth/register', limiter, wrap(async (q, s) => {
@@ -52,11 +54,13 @@ r.post('/auth/register', limiter, wrap(async (q, s) => {
   const otp = await Otp.findById(otpId);
   if (!otp || otp.expiresAt < new Date() || otp.tries >= 5) return s.status(400).json({ error: 'OTP expired. Request a new one.' });
   otp.tries++; await otp.save();
-  if (hash(String(emailOtp)) !== otp.emailHash || hash(String(waOtp)) !== otp.waHash) return s.status(400).json({ error: 'Wrong OTP' });
+  if (hash(String(emailOtp).trim()) !== otp.emailHash) return s.status(400).json({ error: 'Wrong email OTP' });
+  const waGiven = !!otp.waHash && String(waOtp || '').trim() !== '';   // the WhatsApp OTP is optional
+  if (waGiven && hash(String(waOtp).trim()) !== otp.waHash) return s.status(400).json({ error: 'Wrong WhatsApp OTP. Correct it, or leave it empty to skip WhatsApp verification.' });
   if (!name || String(password || '').length < 6) return s.status(400).json({ error: 'Name and a password of 6+ characters required' });
   await Student.create({
     name, email: otp.email, phone: otp.phone, passwordHash: await bcrypt.hash(password, 10),
-    job, shift: SH[shift] ? shift : 'F', emailVerified: true, waVerified: true,   // status stays "pending"
+    job, shift: SH[shift] ? shift : 'F', emailVerified: true, waVerified: waGiven,   // status stays "pending"
   });
   await otp.deleteOne();
   s.status(201).json({ message: 'Submitted. The admin will approve your request and allot a seat.' });
@@ -80,13 +84,7 @@ r.get('/me', need('student'), wrap(async (q, s) => s.json(row(await Student.find
 
 r.post('/me/checkin', need('student'), wrap(async (q, s) => {
   const st = await Student.findById(q.user.id);
-  if (st.checkedInAt) {                                   // check out
-    st.studyMinutes.set(today(), (st.studyMinutes.get(today()) || 0) + (Date.now() - st.checkedInAt) / 60000);
-    st.checkedInAt = null;
-  } else {                                                // check in
-    st.checkedInAt = new Date();
-    if (!st.presentOn.includes(today())) st.presentOn.push(today());
-  }
+  if (st.checkedInAt) clockOut(st); else clockIn(st);      // Present <-> Absent (Leave), study timer follows
   await st.save(); s.json({ checkedIn: !!st.checkedInAt });
 }));
 
@@ -137,8 +135,8 @@ r.post('/admin/students/:id/fee', adm, wrap(async (q, s) => {          // toggle
 }));
 
 r.post('/admin/students/:id/attendance', adm, wrap(async (q, s) => {
-  const st = await Student.findById(q.params.id), i = st.presentOn.indexOf(today());
-  if (i >= 0) st.presentOn.splice(i, 1); else st.presentOn.push(today());
+  const st = await Student.findById(q.params.id);
+  if (st.checkedInAt) clockOut(st); else clockIn(st);      // Absent (Leave) also stops the study timer
   await st.save(); s.json(row(st));
 }));
 
@@ -152,8 +150,8 @@ r.post('/admin/students/:id/reset-password', adm, wrap(async (q, s) => {
 r.delete('/admin/students/:id', adm, wrap(async (q, s) => { await Student.deleteOne({ _id: q.params.id }); s.sendStatus(204); }));
 
 const tableRows = async () => (await Student.find({ status: 'approved' }).sort('seat')).map(x =>
-  [x.seat, x.name, x.email, x.phone, x.job, SH[x.shift], x.presentOn.includes(today()) ? 'Present' : 'Absent', paidNow(x) ? 'Paid' : 'Pending']);
-const HEAD = ['Seat', 'Name', 'Email', 'Mobile', 'Preparing for', 'Shift', 'Attendance', 'Fee'];
+  [x.seat, x.name, x.email, x.phone, x.job, SH[x.shift], x.checkedInAt ? 'Present' : 'Absent (Leave)', x.presentOn.includes(today()) ? 'Yes' : 'No', paidNow(x) ? 'Paid' : 'Pending']);
+  const HEAD = ['Seat', 'Name', 'Email', 'Mobile', 'Preparing for', 'Shift', 'Attendance', 'Attended today', 'Fee'];
 
 r.get('/admin/export.xlsx', adm, wrap(async (q, s) => {
   const wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('Students');
@@ -170,7 +168,7 @@ r.get('/admin/export.pdf', adm, wrap(async (q, s) => {
   doc.pipe(s);
   doc.fontSize(16).text('Achievers Study Point - Student List').moveDown(0.5).fontSize(9);
   [HEAD, ...(await tableRows())].forEach((cells, i) => {
-    const y = doc.y; cells.forEach((c, k) => doc.text(String(c), 30 + k * 95, y, { width: 90, lineBreak: false }));
+    const y = doc.y;   cells.filter((_, k) => k !== 2).forEach((c, k) => doc.text(String(c), 30 + k * 95, y, { width: 90, lineBreak: false }));
     doc.moveDown(0.6); if (i === 0) doc.moveTo(30, doc.y).lineTo(800, doc.y).stroke().moveDown(0.3);
   });
   doc.end();

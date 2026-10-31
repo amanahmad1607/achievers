@@ -260,19 +260,27 @@ function Login({ onLogin, go }) {
 function Register({ go }) {
   const [f, setF] = useState({ name: '', email: '', phone: '', password: '', job: JOBS[0], shift: 'F' });
   const [done, setDone] = useState('');
-  const [otp, setOtp] = useState(null);                 // { otpId, emailOtp, waOtp }
+  const [wantWa, setWantWa] = useState(false);          // WhatsApp verification is optional, off by default
+  const [otp, setOtp] = useState(null);                 // { otpId, emailOtp, waOtp, waSent }
+  const [busy, setBusy] = useState('');                 // '' | 'sending' | 'registering'
   const [msg, setMsg] = useState({ t: '', ok: false });
   const set = k => e => setF({ ...f, [k]: e.target.value });
   const fail = e => setMsg({ t: e.message, ok: false });
   const send = async () => {
-    try { const { otpId } = await api('/otp/send', { method: 'POST', body: { email: f.email, phone: f.phone } }); setOtp({ otpId, emailOtp: '', waOtp: '' }); setMsg({ t: '', ok: false }); }
-    catch (e) { fail(e); }
+    setBusy('sending');
+    try {
+      const d = await api('/otp/send', { method: 'POST', body: { email: f.email, phone: f.phone, whatsapp: wantWa } });
+      setOtp({ otpId: d.otpId, emailOtp: '', waOtp: '', waSent: d.waSent }); setMsg({ t: '', ok: false });
+    } catch (e) { fail(e); }
+    setBusy('');
   };
   const finish = async () => {
+    setBusy('registering');
     try { const d = await api('/auth/register', { method: 'POST', body: { ...f, ...otp } }); setDone(d.message); }
     catch (e) { fail(e); }
+    setBusy('');
   };
-    if (done) return (
+  if (done) return (
     <div className="card auth" style={{ textAlign: 'center' }}>
       <div style={{ fontSize: 54 }}>✅</div>
       <h3>Registration submitted</h3>
@@ -284,7 +292,6 @@ function Register({ go }) {
     </div>
   );
   return (
-    
     <div className="card auth">
       <h3>Student Registration</h3>
       {!otp ? (<>
@@ -295,13 +302,15 @@ function Register({ go }) {
         <label>Shift</label>
         <select value={f.shift} onChange={set('shift')}><option value="M">Morning (6 AM to 2 PM)</option><option value="E">Evening (2 PM to 10 PM)</option><option value="F">Full Day</option></select>
         <label>Create password (min 6)</label><input type="password" value={f.password} onChange={set('password')} />
-        <button className="btn" onClick={send}>Send OTPs</button>
+        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontWeight: 400 }}><input type="checkbox" style={{ width: 'auto' }} checked={wantWa} onChange={e => setWantWa(e.target.checked)} />Also verify my WhatsApp number with an OTP (optional)</label>
+        <button className="btn" onClick={send} disabled={!!busy}>{busy === 'sending' ? 'Sending…' : 'Send OTP'}</button>
       </>) : (<>
-        <p>OTPs were sent to {f.email} and your WhatsApp number.</p>
+        <p>An OTP was sent to {f.email}.{otp.waSent && ' A WhatsApp OTP was also sent to your mobile number.'}</p>
+        {wantWa && !otp.waSent && <p className="hint">We could not send a WhatsApp OTP right now. You can continue with the email OTP only.</p>}
         <label>Email OTP</label><input value={otp.emailOtp} onChange={e => setOtp({ ...otp, emailOtp: e.target.value })} maxLength={6} />
-        <label>WhatsApp OTP</label><input value={otp.waOtp} onChange={e => setOtp({ ...otp, waOtp: e.target.value })} maxLength={6} />
-        <button className="btn" onClick={finish}>Verify &amp; Register</button>
-        <button className="btn sec" onClick={send}>Resend</button>
+        {otp.waSent && <><label>WhatsApp OTP (optional)</label><input value={otp.waOtp} onChange={e => setOtp({ ...otp, waOtp: e.target.value })} maxLength={6} placeholder="Leave empty to skip" /></>}
+        <button className="btn" onClick={finish} disabled={!!busy}>{busy === 'registering' ? 'Registering…' : 'Verify & Register'}</button>
+        <button className="btn sec" onClick={send} disabled={!!busy}>{busy === 'sending' ? 'Sending…' : 'Resend'}</button>
       </>)}
       <button className="btn sec" onClick={() => go('login')}>Back to login</button>
       <div className={'msg ' + (msg.ok ? 'ok-msg' : '')}>{msg.t}</div>
@@ -338,7 +347,7 @@ function Student() {
   const [info, setInfo] = useState({ terms: '', notice: '' });
   const [terms, setTerms] = useState(!sessionStorage.getItem('terms'));
   const load = async () => { setMe(await api('/me')); setOcc((await api('/seats')).occupied); setInfo(await api('/terms')); };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, []);   // refresh every 30 s so an admin change shows up
   if (!me) return <p>Loading…</p>;
   const toggle = async () => { await api('/me/checkin', { method: 'POST' }); load(); };
   const owes = me.pendingMonths.length > 0;
@@ -359,7 +368,7 @@ function Student() {
           <div className="chips">
             <span className="chip">🕒 {SH[me.shift]}</span>
             <span className="chip">🎯 {me.job}</span>
-            <span className={'chip ' + (me.present ? 'good' : 'warn')}><i className="dot" />{me.present ? 'Present today' : 'Absent today'}</span>
+            <span className={'chip ' + (me.present ? 'good' : 'warn')}><i className="dot" />{me.present ? 'Present' : 'Absent (Leave)'}</span>
             <span className={'chip ' + (owes ? 'warn' : 'good')}>{owes ? '⚠️' : '✅'} Fee: {me.feeState}</span>
           </div>
         </div>
@@ -550,7 +559,7 @@ function Students() {
           <td><b>{s.seat}</b> <button onClick={() => { const n = prompt('New seat number (1-115)'); n && act(s._id, '/seat', 'PATCH', { seat: +n }); }}>✎</button></td>
           <td><button className="link" title="View details" onClick={() => setSel(s)}>{s.name}</button></td>
           <td>{s.email}</td><td>{s.phone}</td><td>{s.job}</td><td>{SH[s.shift]}</td>
-          <td><button className={'pill ' + (s.present ? 'ok' : 'bad')} onClick={() => act(s._id, '/attendance')}>{s.present ? 'Present' : 'Absent'}</button></td>
+          <td><button className={'pill ' + (s.present ? 'ok' : 'bad')} onClick={() => act(s._id, '/attendance')}>{s.present ? 'Present' : 'Absent (Leave)'}</button></td>
           <td><button className={'pill ' + (s.pendingMonths.length ? 'bad' : 'ok')} title="Click to mark this month paid or unpaid" onClick={() => act(s._id, '/fee')}>{s.feeState}</button></td>
           <td><button onClick={async () => { const { temp } = await api(`/admin/students/${s._id}/reset-password`, { method: 'POST' }); alert('Temporary password: ' + temp); }}>🔑</button>{' '}
               <button onClick={() => confirm('Remove this student and free the seat?') && act(s._id, '', 'DELETE')}>✕</button></td>
@@ -565,9 +574,9 @@ function Details({ s, close, reload }) {
   const pays = [...s.payments].sort((a, b) => b.month.localeCompare(a.month));
   const last = [...s.payments].sort((a, b) => new Date(b.paidOn) - new Date(a.paidOn))[0];
   const rows = [['Seat', s.seat], ['Shift', SH[s.shift]], ['Preparing for', s.job], ['Email', s.email], ['Mobile', s.phone], ['Joined', String(s.joinedAt).slice(0, 10)],
-    ['Today', s.checkedInAt ? 'Checked in (studying now)' : s.present ? 'Present' : 'Absent'], ['Study time this month', hm(s.monthMinutes)], ['Study streak', s.streak + ' days'],
+    ['Today', s.present ? 'Present (studying now)' : s.attended ? 'Absent (Leave) - attended earlier today' : 'Absent (Leave)'], ['Study time this month', hm(s.monthMinutes)], ['Study streak', s.streak + ' days'],
     ['Fee status', s.feeState], ['Last fee paid', last ? `${String(last.paidOn).slice(0, 10)} (for ${last.month})` : 'Never paid'],
-    ['Verified by OTP', s.emailVerified && s.waVerified ? 'Email and WhatsApp' : 'No']];
+    ['Verified by OTP', s.emailVerified ? (s.waVerified ? 'Email and WhatsApp' : 'Email only (WhatsApp not verified)') : 'No']];
   return (
     <div className="modal"><div className="card" style={{ width: '100%', maxHeight: '90vh', overflow: 'auto' }}>
       <h3>{s.name}</h3>
@@ -676,7 +685,7 @@ function Pending({ onChange }) {
     <div className="card"><h3>Pending approvals ({rows.length})</h3><div className="msg">{err}</div>
       {rows.map(s => (
         <div key={s._id} style={{ borderTop: '1px solid var(--line)', padding: '10px 0' }}>
-          <b>{s.name}</b> · {SH[s.shift]} · {s.job}<br /><small>{s.email} | {s.phone}</small><br />
+          <b>{s.name}</b> · {SH[s.shift]} · {s.job}<br /><small>{s.email} | {s.phone} | {s.waVerified ? 'WhatsApp verified' : 'WhatsApp not verified'}</small><br />
           <input style={{ width: 160 }} type="number" placeholder="Seat (blank = auto)" onChange={e => setSeats({ ...seats, [s._id]: e.target.value })} />
           <button className="btn" onClick={() => approve(s)}>Approve &amp; allot seat</button>
           <button className="btn sec" onClick={() => reject(s)}>Reject</button>
@@ -693,7 +702,7 @@ function AdminMap() {
     <div className="card"><h3>Seat Map</h3>
       <SeatMap shared={i => on(i).length > 1} cls={i => (!on(i).length ? 'free' : on(i).some(s => s.present) ? 'ok' : 'bad')}
                title={i => `Seat ${i}: ` + (on(i).map(s => `${s.name} (${SH[s.shift]})`).join(', ') || 'Free')} />
-      <small>Indigo = free, green = present today, red = absent. * = shared by a Morning and an Evening student. Hover for names.</small>
+      <small>Indigo = free, green = present now (checked in), red = absent (leave). * = shared by a Morning and an Evening student. Hover for names.</small>
     </div>
   );
 }

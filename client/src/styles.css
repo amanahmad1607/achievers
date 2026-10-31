@@ -150,3 +150,7 @@ body{overflow-x:hidden}
 @media (max-width:600px){.carousel .capbar{padding:40px 16px 12px}}
 
 .carousel{margin-bottom:20px}
+
+
+.btn:disabled{opacity:.65;cursor:default}
+.btn:disabled:hover{transform:none;box-shadow:none}
