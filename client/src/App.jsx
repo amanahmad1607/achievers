@@ -14,7 +14,7 @@ export default function App() {
   return (
     <>
       <header>
-        <h1>🎓 Achievers <span>Study Point</span></h1><div className="sp" />
+        <h1><img src="/fevicon.png" alt="" className="logo" />Achievers <span>Study Point</span></h1><div className="sp" />
         {auth ? <><span>{label}</span><button className="btn" onClick={logout}>Logout</button></>
               : <button className="btn" onClick={() => setView(view === 'home' ? 'login' : 'home')}>{view === 'home' ? 'Login' : 'Home'}</button>}
       </header>
@@ -64,24 +64,21 @@ function Carousel({ slides, go }) {
     <div className="carousel" onMouseEnter={() => setHold(true)} onMouseLeave={() => setHold(false)}
       onTouchStart={e => { touch.current = e.touches[0].clientX; }}
       onTouchEnd={e => { const dx = e.changedTouches[0].clientX - touch.current; if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1); }}>
-      {slides.map((s, k) => (
-        <div key={s._id} className={'slide' + (k === i ? ' on' : '')}>
-          <img src={`/api/public/slides/${s._id}/image`} alt={s.caption} loading={k === 0 ? 'eager' : 'lazy'} />
-        </div>))}
-      <div className="shade" />
-      <div className="content">
-        <div className="eyebrow">Achievers Study Point</div>
-        <h2 key={i} className="cap">{slides[i].caption || 'Welcome to Achievers Study Point'}</h2>
-        <div>
-          <button className="btn" onClick={() => go('register')}>Register for a Seat</button>
-          <button className="btn sec" onClick={() => go('login')}>Login</button>
+      <div className="stage">
+        {slides.map((s, k) => (
+          <div key={s._id} className={'slide' + (k === i ? ' on' : '')} style={{ '--bg': `url(/api/public/slides/${s._id}/image)` }}>
+            <img src={`/api/public/slides/${s._id}/image`} alt={s.caption} loading={k === 0 ? 'eager' : 'lazy'} />
+          </div>))}
+        {n > 1 && <>
+          <button className="arrow l" onClick={() => step(-1)} aria-label="Previous photo">‹</button>
+          <button className="arrow r" onClick={() => step(1)} aria-label="Next photo">›</button>
+        </>}
+        <div className="capbar">
+          <h2 key={i} className="cap">{slides[i].caption}</h2>
+          {n > 1 && <div className="dots">{slides.map((_, k) => <button key={k} className={k === i ? 'on' : ''} onClick={() => setI(k)} aria-label={'Photo ' + (k + 1)} />)}</div>}
         </div>
       </div>
-      {n > 1 && <>
-        <button className="arrow l" onClick={() => step(-1)} aria-label="Previous photo">‹</button>
-        <button className="arrow r" onClick={() => step(1)} aria-label="Next photo">›</button>
-        <div className="dots">{slides.map((_, k) => <button key={k} className={k === i ? 'on' : ''} onClick={() => setI(k)} aria-label={'Photo ' + (k + 1)} />)}</div>
-      </>}
+      
     </div>
   );
 }
@@ -92,10 +89,10 @@ function resizeBanner(file) {
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const c = document.createElement('canvas'); c.width = 1920; c.height = 720;
-        const k = Math.max(1920 / img.width, 720 / img.height), w = img.width * k, h = img.height * k;
-        c.getContext('2d').drawImage(img, (1920 - w) / 2, (720 - h) / 2, w, h);
-        resolve(c.toDataURL('image/jpeg', 0.8));
+        const k = Math.min(1, 1600 / img.width, 900 / img.height);          // shrink only, never crop
+        const c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.78));
       };
       img.onerror = reject; img.src = reader.result;
     };
@@ -153,14 +150,13 @@ function Home({ go }) {
   if (!h) return <p>Loading…</p>;
   const q = encodeURIComponent(h.address);
   return (<>
-    {slides.length ? <Carousel slides={slides} go={go} /> : (
-      <div className="hero">
-        <h2>Welcome to Achievers <span>Study Point</span></h2>
-        <p>A calm, focused place for competitive exam aspirants. Register, get approved and make every study hour count.</p>
-        <button className="btn" onClick={() => go('register')}>Register for a Seat</button>
-        <button className="btn sec" onClick={() => go('login')}>Login</button>
-      </div>
-    )}
+    {slides.length > 0 && <Carousel slides={slides} />}
+    <div className="hero">
+      <h2>Welcome to Achievers <span>Study Point</span></h2>
+      <p>A calm, focused place for competitive exam aspirants. Register, get approved and make every study hour count.</p>
+      <button className="btn" onClick={() => go('register')}>Register for a Seat</button>
+      <button className="btn sec" onClick={() => go('login')}>Login</button>
+    </div>
     <div className="stats">
       <div className="stat"><small>Total seats</small><b>{h.totalSeats}</b></div>
       <div className="stat"><small>Seats available now</small><b>{h.freeSeats}</b></div>
