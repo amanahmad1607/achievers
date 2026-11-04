@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
+    "start": "node src/dev.js",
+    "dev": "node --watch src/dev.js",
     "seed": "node src/seed.js"
   },
   "dependencies": {
