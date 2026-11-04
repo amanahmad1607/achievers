@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api,apiUrl , download } from './api.js';
 import SeatMap from './SeatMap.jsx';
+import { Analytics } from '@vercel/analytics/react';
 
 const SH = { M: 'Morning', E: 'Evening', F: 'Full Day' };
 const JOBS = ['UPSC', 'SSC', 'Banking', 'Railways', 'State PSC', 'Defence', 'Teaching (CTET/TET)', 'NEET', 'JEE', 'GATE', 'Other'];
@@ -26,6 +27,7 @@ export default function App() {
         {(auth?.role === 'admin' || auth?.role === 'super') && <Admin isSuper={auth.role === 'super'} />}
       </main>
       <footer>© Achievers Study Point. Developed and managed by <b>Aman Ahmad</b> and <b>Meraj Alam</b></footer>
+      <Analytics />
     </>
   );
 }
