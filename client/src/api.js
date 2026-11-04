@@ -6,7 +6,6 @@ export function apiUrl(path) {
   return `${API_BASE}${path.startsWith('/') ? path : '/' + path}`;
 }
 
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 
 export async function api(path, { method = 'GET', body, blob } = {}) {
   const token = localStorage.getItem('token');
