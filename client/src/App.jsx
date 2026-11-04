@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, download } from './api.js';
+import { api,apiUrl , download } from './api.js';
 import SeatMap from './SeatMap.jsx';
 
 const SH = { M: 'Morning', E: 'Evening', F: 'Full Day' };
@@ -66,8 +66,14 @@ function Carousel({ slides, go }) {
       onTouchEnd={e => { const dx = e.changedTouches[0].clientX - touch.current; if (Math.abs(dx) > 40) step(dx < 0 ? 1 : -1); }}>
       <div className="stage">
         {slides.map((s, k) => (
-          <div key={s._id} className={'slide' + (k === i ? ' on' : '')} style={{ '--bg': `url(/api/public/slides/${s._id}/image)` }}>
-            <img src={`/api/public/slides/${s._id}/image`} alt={s.caption} loading={k === 0 ? 'eager' : 'lazy'} />
+          <div key={s._id} className={'slide' + (k === i ? ' on' : '')} style={{
+      '--bg': `url("${apiUrl(`/api/public/slides/${s._id}/image`)}")`
+          }}>
+            <img
+              src={apiUrl(`/api/public/slides/${s._id}/image`)}
+              alt={s.caption}
+              loading={k === 0 ? 'eager' : 'lazy'}
+            />
           </div>))}
         {n > 1 && <>
           <button className="arrow l" onClick={() => step(-1)} aria-label="Previous photo">‹</button>
@@ -131,7 +137,7 @@ function Slides() {
         {list.length === 0 && <p className="hint">No slides yet. The home page shows the plain blue banner until you add one.</p>}
         {list.map((s, k) => (
           <div className="row" key={s._id}>
-            <img src={`/api/public/slides/${s._id}/image`} alt="" />
+            <img src={apiUrl(`/api/public/slides/${s._id}/image`)} alt={s.caption || 'Carousel image'} />
             <input value={caps[s._id] ?? s.caption} onChange={e => setCaps({ ...caps, [s._id]: e.target.value })} maxLength={120} />
             <button className="pill ok" onClick={() => act(s._id, '', 'PATCH', { caption: caps[s._id] ?? s.caption })}>Save caption</button>
             <button className="pill ok" disabled={k === 0} onClick={() => act(s._id, '/move', 'POST', { dir: 'up' })}>↑</button>
