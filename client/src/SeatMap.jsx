@@ -9,7 +9,7 @@ const POS = (() => {
     right.forEach((n, k) => (p[n] = [rx, 70 + k * 40]));
     left.forEach((n, k) => (p[n] = [lx, 70 + k * 40]));
   };
-  bench(680, 736, rev(1, 12), rev(13, 24));
+  bench(680, 736, r(1, 12), rev(13, 24));
   bench(480, 536, r(26, 37), rev(38, 49));
   bench(280, 336, r(50, 61), rev(62, 73));
   p[25] = [680, 22];
