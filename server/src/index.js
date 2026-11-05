@@ -17,6 +17,7 @@ const app = express();
 // CORS
 const allowedOrigins = [
   'https://achieverslibrarymallawan.in',
+  'https://www.achieverslibrarymallawan.in',
   'https://achieversstudypoint.vercel.app',
   'http://localhost:5173'
 ];
