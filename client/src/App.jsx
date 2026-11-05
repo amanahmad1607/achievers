@@ -4,7 +4,7 @@ import SeatMap from './SeatMap.jsx';
 import { Analytics } from '@vercel/analytics/react';
 
 const SH = { M: 'Morning', E: 'Evening', F: 'Full Day' };
-const JOBS = ['UPSC', 'SSC', 'Banking', 'Railways', 'State PSC', 'Defence', 'Teaching (CTET/TET)', 'NEET', 'JEE', 'GATE', 'Other'];
+const JOBS = ['UPSC', 'SSC', 'Banking', 'Railways', 'State PSC', 'Defence', 'Teaching (CTET/TET)', 'NEET', 'JEE', 'GATE', 'Nursing', 'UPP', 'Other'];
 
 export default function App() {
   const [auth, setAuth] = useState(() => JSON.parse(localStorage.getItem('auth') || 'null'));
@@ -42,7 +42,7 @@ const FACILITIES = [
   ['📹', 'CCTV Security', '24x7 CCTV surveillance for a safe study space.'],
   ['🏆', 'Peer Group', 'A motivating environment for exam preparation.'],
 ];
-const EXAMS = ['UPSC', 'SSC', 'Banking', 'Railways', 'State PSC', 'Defence', 'Teaching', 'NEET / JEE', 'GATE'];
+const EXAMS = ['UPSC', 'SSC', 'Banking', 'Railways', 'State PSC', 'Defence', 'Teaching', 'NEET / JEE', 'GATE', 'Nursing', 'UPP'];
 const SOC = {
   ig: ['Instagram', '#e1306c', <><rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" strokeWidth="2" /><circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="2" /><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" /></>],
   fb: ['Facebook', '#1877f2', <path d="M14 8h3V4h-3a4 4 0 00-4 4v2H7v4h3v8h4v-8h3l1-4h-4V8z" fill="currentColor" />],
