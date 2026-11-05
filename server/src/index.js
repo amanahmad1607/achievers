@@ -15,11 +15,15 @@ import './dns-fix.js';
 const app = express();
 
 // CORS
+const allowedOrigins = [
+  'https://achieverslibrarymallawan.in',
+  'https://achieversstudypoint.vercel.app',
+  'http://localhost:5173'
+];
+
 app.use(cors({
-  origin: [
-    process.env.CLIENT_URL,
-    'http://localhost:5173'
-  ].filter(Boolean)
+  origin: allowedOrigins,
+  credentials: true
 }));
 
 // Request body limits
