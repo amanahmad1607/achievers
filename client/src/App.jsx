@@ -561,12 +561,12 @@ function Students() {
   };
   return (<>
     <div className="card scroll"><table>
-      <thead><tr><th>Seat</th><th>Name</th><th>Email</th><th>Mobile</th><th>Preparing for</th><th>Shift</th><th>Attendance</th><th>Fee</th><th></th></tr></thead>
+      <thead><tr><th>Seat</th><th>Name</th><th>Preparing for</th><th>Shift</th><th>Attendance</th><th>Fee</th><th></th></tr></thead>
       <tbody>{rows.map(s => (
         <tr key={s._id}>
           <td><b>{s.seat}</b> <button onClick={() => { const n = prompt('New seat number (1-115)'); n && act(s._id, '/seat', 'PATCH', { seat: +n }); }}>✎</button></td>
           <td><button className="link" title="View details" onClick={() => setSel(s)}>{s.name}</button></td>
-          <td>{s.email}</td><td>{s.phone}</td><td>{s.job}</td><td>{SH[s.shift]}</td>
+          <td>{s.job}</td><td>{SH[s.shift]}</td>
           <td><button className={'pill ' + (s.present ? 'ok' : 'bad')} onClick={() => act(s._id, '/attendance')}>{s.present ? 'Present' : 'Absent (Leave)'}</button></td>
           <td><button className={'pill ' + (s.pendingMonths.length ? 'bad' : 'ok')} title="Click to mark this month paid or unpaid" onClick={() => act(s._id, '/fee')}>{s.feeState}</button></td>
           <td><button onClick={async () => { const { temp } = await api(`/admin/students/${s._id}/reset-password`, { method: 'POST' }); alert('Temporary password: ' + temp); }}>🔑</button>{' '}
