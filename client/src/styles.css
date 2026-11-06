@@ -154,3 +154,113 @@ body{overflow-x:hidden}
 
 .btn:disabled{opacity:.65;cursor:default}
 .btn:disabled:hover{transform:none;box-shadow:none}
+
+
+
+
+.attendance-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin: 18px 0;
+  padding: 16px;
+  background: #ffffff;
+  border: 1px solid #e2e5e9;
+  border-radius: 22px;
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 157px;
+  padding: 16px 10px;
+  border-radius: 21px;
+  transition: transform 0.2s ease;
+}
+
+.summary-card:hover {
+  transform: translateY(-2px);
+}
+
+.summary-card svg {
+  width: 30px;
+  height: 30px;
+  margin-bottom: 15px;
+}
+
+.summary-card h2 {
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 700;
+  margin: 0 0 15px;
+}
+
+.summary-card p {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Present */
+.present-card {
+  background: #e7f6ee;
+  color: #078b50;
+}
+
+.present-card p {
+  color: #477d61;
+}
+
+/* Absent */
+.absent-card {
+  background: #fdecec;
+  color: #ed4145;
+}
+
+.absent-card p {
+  color: #a85a5a;
+}
+
+/* Total */
+.total-card {
+  background: #eaf0fa;
+  color: #193b68;
+}
+
+.total-card p {
+  color: #536b8b;
+}
+
+/* Mobile responsive */
+@media (max-width: 600px) {
+  .attendance-summary {
+    gap: 6px;
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .summary-card {
+    min-height: 130px;
+    padding: 12px 4px;
+    border-radius: 15px;
+  }
+
+  .summary-card svg {
+    width: 25px;
+    height: 25px;
+    margin-bottom: 12px;
+  }
+
+  .summary-card h2 {
+    font-size: 24px;
+    margin-bottom: 10px;
+  }
+
+  .summary-card p {
+    font-size: 13px;
+  }
+}
