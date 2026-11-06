@@ -530,7 +530,24 @@ function Admin({ isSuper }) {
     <div className="tabs">
       {tabs.map(([k, l]) => <button key={k} className="btn sec" onClick={() => setTab(k)}>{l}{badge[k] > 0 && <span className="badge">{badge[k]}</span>}</button>)}
       <button className="btn" onClick={() => download('/admin/export.xlsx', 'students.xlsx')}>⬇ Excel</button>
-      <button className="btn" onClick={() => download('/admin/export.pdf', 'students.pdf')}>⬇ PDF</button>
+      <button
+  className="btn"
+  onClick={() => {
+    const date = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }).format(new Date()).replace(/\//g, '-');
+
+    download(
+      '/admin/export.pdf',
+      `Achievers_Student_List_${date}.pdf`
+    );
+  }}
+>
+  ⬇ PDF
+</button>
     </div>
     {tab === 'students' && <Students />}
     {tab === 'pending' && <Pending onChange={refresh} />}
