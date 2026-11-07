@@ -530,7 +530,24 @@ function Admin({ isSuper }) {
     <div className="tabs">
       {tabs.map(([k, l]) => <button key={k} className="btn sec" onClick={() => setTab(k)}>{l}{badge[k] > 0 && <span className="badge">{badge[k]}</span>}</button>)}
       <button className="btn" onClick={() => download('/admin/export.xlsx', 'students.xlsx')}>⬇ Excel</button>
-      <button className="btn" onClick={() => download('/admin/export.pdf', 'students.pdf')}>⬇ PDF</button>
+      <button
+  className="btn"
+  onClick={() => {
+    const date = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    }).format(new Date()).replace(/\//g, '-');
+
+    download(
+      '/admin/export.pdf',
+      `Achievers_Student_List_${date}.pdf`
+    );
+  }}
+>
+  ⬇ PDF
+</button>
     </div>
     {tab === 'students' && <Students />}
     {tab === 'pending' && <Pending onChange={refresh} />}
@@ -548,8 +565,30 @@ function Admin({ isSuper }) {
 function Students() {
   const [rows, setRows] = useState([]);
   const [sel, setSel] = useState(null);
-  const load = async () => { const r = await api('/admin/students'); setRows(r); setSel(s => s && r.find(x => x._id === s._id)); };
-  useEffect(() => { load(); }, []);
+
+  const load = async () => {
+    try {
+      const r = await api('/admin/students');
+      setRows(r);
+      setSel(s => s && r.find(x => x._id === s._id));
+    } catch (e) {
+      console.error('Failed to load students:', e);
+    }
+  };
+
+  // Initial load + automatic refresh every 10 seconds
+  useEffect(() => {
+    load();
+
+    const timer = setInterval(load, 10000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Live attendance calculations using the same status as the table
+  const totalStudents = rows.length;
+  const presentToday = rows.filter(s => s.present).length;
+  const absentToday = totalStudents - presentToday;
   const act = async (id, path, method = 'POST', body) => {
     try { await api(`/admin/students/${id}${path}`, { method, body }); }
     catch (e) {
@@ -560,13 +599,53 @@ function Students() {
     load();
   };
   return (<>
+    <div className="attendance-summary">
+
+  {/* Present */}
+  <div className="summary-card present-card">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="10" cy="7" r="4" />
+      <path d="M3 21v-2a7 7 0 0 1 14 0v2" />
+      <path d="m17 11 2 2 4-4" />
+    </svg>
+    <h2>{presentToday}</h2>
+    <p>Present</p>
+  </div>
+
+  {/* Absent */}
+  <div className="summary-card absent-card">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="10" cy="7" r="4" />
+      <path d="M3 21v-2a7 7 0 0 1 12-5" />
+      <path d="m17 17 5 5m0-5-5 5" />
+    </svg>
+    <h2>{absentToday}</h2>
+    <p>Absent</p>
+  </div>
+
+  {/* Total */}
+  <div className="summary-card total-card">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="10" cy="7" r="4" />
+      <path d="M20 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+    <h2>{totalStudents}</h2>
+    <p>Total</p>
+  </div>
+
+</div>
     <div className="card scroll"><table>
-      <thead><tr><th>Seat</th><th>Name</th><th>Email</th><th>Mobile</th><th>Preparing for</th><th>Shift</th><th>Attendance</th><th>Fee</th><th></th></tr></thead>
+      <thead><tr><th>Seat</th><th>Name</th><th>Preparing for</th><th>Shift</th><th>Attendance</th><th>Fee</th><th></th></tr></thead>
       <tbody>{rows.map(s => (
         <tr key={s._id}>
           <td><b>{s.seat}</b> <button onClick={() => { const n = prompt('New seat number (1-115)'); n && act(s._id, '/seat', 'PATCH', { seat: +n }); }}>✎</button></td>
           <td><button className="link" title="View details" onClick={() => setSel(s)}>{s.name}</button></td>
-          <td>{s.email}</td><td>{s.phone}</td><td>{s.job}</td><td>{SH[s.shift]}</td>
+          <td>{s.job}</td><td>{SH[s.shift]}</td>
           <td><button className={'pill ' + (s.present ? 'ok' : 'bad')} onClick={() => act(s._id, '/attendance')}>{s.present ? 'Present' : 'Absent (Leave)'}</button></td>
           <td><button className={'pill ' + (s.pendingMonths.length ? 'bad' : 'ok')} title="Click to mark this month paid or unpaid" onClick={() => act(s._id, '/fee')}>{s.feeState}</button></td>
           <td><button onClick={async () => { const { temp } = await api(`/admin/students/${s._id}/reset-password`, { method: 'POST' }); alert('Temporary password: ' + temp); }}>🔑</button>{' '}

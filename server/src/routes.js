@@ -163,14 +163,244 @@ r.get('/admin/export.xlsx', adm, wrap(async (q, s) => {
 }));
 
 r.get('/admin/export.pdf', adm, wrap(async (q, s) => {
-  const doc = new PDFDocument({ margin: 30, size: 'A4', layout: 'landscape' });
-  s.setHeader('Content-Type', 'application/pdf'); s.setHeader('Content-Disposition', 'attachment; filename=students.pdf');
-  doc.pipe(s);
-  doc.fontSize(16).text('Achievers Study Point - Student List').moveDown(0.5).fontSize(9);
-  [HEAD, ...(await tableRows())].forEach((cells, i) => {
-    const y = doc.y;   cells.filter((_, k) => k !== 2).forEach((c, k) => doc.text(String(c), 30 + k * 95, y, { width: 90, lineBreak: false }));
-    doc.moveDown(0.6); if (i === 0) doc.moveTo(30, doc.y).lineTo(800, doc.y).stroke().moveDown(0.3);
+  const students = await tableRows();
+
+  // Indian date (DD-MM-YYYY)
+  const now = new Date();
+  const date = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  }).format(now);
+
+  const fileDate = date.replace(/\//g, '-');
+
+  const doc = new PDFDocument({
+    size: 'A4',
+    layout: 'landscape',
+    margin: { top: 30, bottom: 30, left: 30, right: 30 },
+    bufferPages: true
   });
+
+  const filename = `Achievers_Student_List_${fileDate}.pdf`;
+
+  s.setHeader('Content-Type', 'application/pdf');
+  s.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${filename}"`
+  );
+
+  doc.pipe(s);
+
+  // Keep your existing behavior of excluding column index 2.
+  const columns = HEAD
+    .map((heading, index) => ({ heading, index }))
+    .filter(col => col.index !== 2);
+
+  const pageWidth = doc.page.width;
+  const pageHeight = doc.page.height;
+  const left = 30;
+  const right = 30;
+  const top = 30;
+  const bottom = 30;
+  const tableWidth = pageWidth - left - right;
+
+  // Column widths automatically fit the landscape page.
+  const weights = columns.map((_, i) => {
+    const heading = String(columns[i].heading).toLowerCase();
+
+    if (heading.includes('name')) return 2.0;
+    if (heading.includes('preparing')) return 1.8;
+    if (heading.includes('attendance')) return 1.5;
+    if (heading.includes('attended')) return 1.3;
+    if (heading.includes('shift')) return 1.0;
+    if (heading.includes('fee')) return 0.9;
+    return 0.7;
+  });
+
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  const widths = weights.map(w => tableWidth * w / totalWeight);
+
+  const padding = 5;
+  const fontSize = 8;
+  const headerFontSize = 8;
+
+  // Main report heading
+  function drawTitle() {
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(17)
+      .fillColor('#172554')
+      .text('ACHIEVERS STUDY POINT', left, doc.y, {
+        width: tableWidth,
+        align: 'center'
+      });
+
+    doc.moveDown(0.2);
+
+    doc
+      .font('Helvetica')
+      .fontSize(11)
+      .fillColor('#334155')
+      .text('Student List / Attendance Report', {
+        align: 'center'
+      });
+
+    doc.moveDown(0.3);
+
+    doc
+      .fontSize(9)
+      .fillColor('#475569')
+      .text(`Report Date: ${date}`, {
+        align: 'right'
+      });
+
+    doc.moveDown(0.8);
+  }
+
+  // Draw table header
+  function drawTableHeader() {
+    const y = doc.y;
+    const height = 27;
+
+    doc
+      .rect(left, y, tableWidth, height)
+      .fill('#1e3a8a');
+
+    let x = left;
+
+    columns.forEach((col, i) => {
+      doc
+        .font('Helvetica-Bold')
+        .fontSize(headerFontSize)
+        .fillColor('#ffffff')
+        .text(
+          String(col.heading),
+          x + padding,
+          y + 8,
+          {
+            width: widths[i] - padding * 2,
+            height: height - 8,
+            align: 'left',
+            lineBreak: true
+          }
+        );
+
+      x += widths[i];
+    });
+
+    doc.y = y + height;
+  }
+
+  // Calculate complete row height before drawing it.
+ function calculateRowHeight(cells) {
+  return 27;
+}
+
+  // Draw one complete student row.
+function drawRow(cells, index) {
+  const rowHeight = calculateRowHeight(cells);
+  const y = doc.y;
+
+  // Row background
+  doc.save();
+  doc.rect(left, y, tableWidth, rowHeight)
+    .fill(index % 2 === 0 ? '#f1f5f9' : '#ffffff');
+  doc.restore();
+
+  let x = left;
+
+  columns.forEach((col, i) => {
+    const value = String(cells[col.index] ?? '-');
+
+    // Fixed-position rendering: do not allow wrapping.
+    doc.save();
+    doc.font('Helvetica')
+      .fontSize(fontSize)
+      .fillColor('#1e293b');
+
+    doc.text(
+      value,
+      x + padding,
+      y + (rowHeight - fontSize) / 2,
+      {
+        width: widths[i] - padding * 2,
+        height: fontSize + 2,
+        lineBreak: false,
+        ellipsis: true
+      }
+    );
+
+    doc.restore();
+
+    x += widths[i];
+  });
+
+  // Bottom border
+  doc.save();
+  doc.moveTo(left, y + rowHeight)
+    .lineTo(left + tableWidth, y + rowHeight)
+    .lineWidth(0.4)
+    .strokeColor('#cbd5e1')
+    .stroke();
+  doc.restore();
+
+  doc.y = y + rowHeight;
+}
+
+  // First page
+  drawTitle();
+  drawTableHeader();
+
+  // Student rows
+  students.forEach((student, index) => {
+  const rowHeight = 27;
+
+  if (doc.y + rowHeight > pageHeight - 45) {
+    doc.addPage({
+      size: 'A4',
+      layout: 'landscape',
+      margin: 30
+    });
+
+    // Explicitly reset cursor on the new page.
+    doc.y = top;
+
+    drawTableHeader();
+  }
+
+  drawRow(student, index);
+});
+
+  // Page numbers on all pages
+  // Page numbers on all existing pages
+const range = doc.bufferedPageRange();
+
+for (let i = 0; i < range.count; i++) {
+  doc.switchToPage(range.start + i);
+
+  // Prevent PDFKit from creating an additional page.
+  const originalBottom = doc.page.margins.bottom;
+  doc.page.margins.bottom = 0;
+
+  doc.font('Helvetica')
+    .fontSize(8)
+    .fillColor('#64748b')
+    .text(
+      `Achievers Study Point | ${date} | Page ${i + 1} of ${range.count}`,
+      left,
+      pageHeight - 20,
+      {
+        width: tableWidth,
+        align: 'center',
+        lineBreak: false
+      }
+    );
+
+  doc.page.margins.bottom = originalBottom;
+}
+
   doc.end();
 }));
 
