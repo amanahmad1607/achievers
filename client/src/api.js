@@ -20,6 +20,7 @@ export async function api(path, { method = 'GET', body, blob } = {}) {
     },
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (res.status === 401 && token) { localStorage.clear(); location.reload(); }   // login expired: back to the home page
 
   if (blob && res.ok) return res.blob();
 

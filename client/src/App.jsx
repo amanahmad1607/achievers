@@ -2,13 +2,17 @@ import { useEffect, useRef, useState } from 'react';
 import { api,apiUrl , download } from './api.js';
 import SeatMap from './SeatMap.jsx';
 import { Analytics } from '@vercel/analytics/react';
+import QRCode from 'qrcode';
 
 const SH = { M: 'Morning', E: 'Evening', F: 'Full Day' };
 const JOBS = ['UPSC', 'SSC', 'Banking', 'Railways', 'State PSC', 'Defence', 'Teaching (CTET/TET)', 'NEET', 'JEE', 'GATE', 'Nursing', 'UPP', 'Other'];
 
+// Opening the site with ?checkin=1 (the door QR code) logs the student in and checks them in
+const wantCheckin = new URLSearchParams(window.location.search).get('checkin') === '1';
+
 export default function App() {
   const [auth, setAuth] = useState(() => JSON.parse(localStorage.getItem('auth') || 'null'));
-  const [view, setView] = useState('home');
+  const [view, setView] = useState(wantCheckin ? 'login' : 'home');
   const login = a => { localStorage.setItem('token', a.token); localStorage.setItem('auth', JSON.stringify(a)); setAuth(a); };
   const logout = () => { localStorage.clear(); sessionStorage.clear(); setAuth(null); setView('home'); };
   const label = auth && (auth.role === 'super' ? 'Super Admin' : auth.role === 'admin' ? 'Admin' : auth.name);
@@ -23,7 +27,7 @@ export default function App() {
         {!auth && view === 'home' && <Home go={setView} />}
         {!auth && view === 'login' && <Login onLogin={login} go={setView} />}
         {!auth && view === 'register' && <Register go={setView} />}
-        {auth?.role === 'student' && <Student />}
+        {auth?.role === 'student' && <Student autoCheckin={wantCheckin} />}
         {(auth?.role === 'admin' || auth?.role === 'super') && <Admin isSuper={auth.role === 'super'} />}
       </main>
       <footer>© Achievers Study Point. Developed and managed by <b>Aman Ahmad</b> & <b>Meraj Alam</b></footer>
@@ -349,13 +353,23 @@ function resizePhoto(file, size = 120) {
 }
 
 /* ---------------- Student dashboard ---------------- */
-function Student() {
+function Student({ autoCheckin }) {
   const [me, setMe] = useState(null);
   const [occ, setOcc] = useState([]);
   const [info, setInfo] = useState({ terms: '', notice: '' });
   const [terms, setTerms] = useState(!sessionStorage.getItem('terms'));
   const load = async () => { setMe(await api('/me')); setOcc((await api('/seats')).occupied); setInfo(await api('/terms')); };
-  useEffect(() => { load(); const t = setInterval(load, 30000); return () => clearInterval(t); }, []);   // refresh every 30 s so an admin change shows up
+  useEffect(() => {
+    (async () => {
+      if (autoCheckin) {                                   // door QR code: check the student in, once
+        try { const m = await api('/me'); if (!m.checkedInAt) await api('/me/checkin', { method: 'POST' }); } catch { /* ignore */ }
+        window.history.replaceState(null, '', window.location.pathname);   // remove ?checkin=1 so a refresh does not repeat it
+      }
+      load();
+    })();
+    const t = setInterval(load, 30000);                    // refresh every 30 s so an admin change shows up
+    return () => clearInterval(t);
+  }, []);
   if (!me) return <p>Loading…</p>;
   const toggle = async () => { await api('/me/checkin', { method: 'POST' }); load(); };
   const owes = me.pendingMonths.length > 0;
@@ -524,7 +538,7 @@ function Admin({ isSuper }) {
   };
   useEffect(() => { refresh(); const t = setInterval(refresh, 30000); return () => clearInterval(t); }, []);
   const badge = { pending: counts.pending, feedback: counts.feedback };
-  const tabs = [['students', 'Students'], ['pending', 'Approvals'], ['map', 'Seat Map'], ['home', '🏠 Home Page'], ['carousel', '🖼 Carousel'], ['notice', '📢 Notices'], ['feedback', '📝 Feedback'], ['messages', '✉️ Messages'],
+  const tabs = [['students', 'Students'], ['pending', 'Approvals'], ['map', 'Seat Map'], ['home', '🏠 Home Page'], ['qr', '🔳 QR Codes'], ['carousel', '🖼 Carousel'], ['notice', '📢 Notices'], ['feedback', '📝 Feedback'], ['messages', '✉️ Messages'],
     ...(isSuper ? [['backup', '💾 Backups'], ['admins', '👑 Manage Admins']] : [])];
   return (<>
     <div className="tabs">
@@ -554,6 +568,7 @@ function Admin({ isSuper }) {
     {tab === 'feedback' && <FeedbackAdmin onChange={refresh} />}
     {tab === 'map' && <AdminMap />}
     {tab === 'home' && <HomeEditor />}
+    {tab === 'qr' && <QrCodes />}
     {tab === 'carousel' && <Slides />}
     {tab === 'notice' && <Notices />}
     {tab === 'messages' && <Messages />}
@@ -680,6 +695,31 @@ function Details({ s, close, reload }) {
     </div></div>
   );
 }
+
+function QrCodes() {
+  const [imgs, setImgs] = useState({});
+  const items = [
+    ['site', 'Open the website', window.location.origin + '/', 'Students scan this to open the site. If they are already logged in, their dashboard opens straight away.'],
+    ['checkin', 'Door check-in', window.location.origin + '/?checkin=1', 'Print this for the entrance. After scanning, the student logs in once and is checked in automatically.'],
+  ];
+  useEffect(() => {
+    items.forEach(([k, , url]) => QRCode.toDataURL(url, { width: 360, margin: 2 }).then(d => setImgs(i => ({ ...i, [k]: d }))));
+  }, []);
+  return (
+    <div className="card"><h3>🔳 QR codes</h3>
+      <div className="feat">{items.map(([k, title, url, note]) => (
+        <div className="card" key={k} style={{ textAlign: 'center' }}>
+          <b>{title}</b>
+          {imgs[k] && <img src={imgs[k]} alt={title} width="220" height="220" style={{ display: 'block', margin: '10px auto', background: '#fff', borderRadius: 8 }} />}
+          <small style={{ display: 'block', color: 'var(--mute)', wordBreak: 'break-all' }}>{url}</small>
+          <p className="hint">{note}</p>
+          <a className="btn" href={imgs[k]} download={`achievers-qr-${k}.png`} style={{ display: 'inline-block', textDecoration: 'none' }}>⬇ Download PNG</a>
+        </div>))}
+      </div>
+    </div>
+  );
+}
+
 
 function Notices() {
   const [text, setText] = useState('');
