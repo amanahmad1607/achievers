@@ -21,7 +21,7 @@ const code = () => String(crypto.randomInt(100000, 1000000));
 const hash = s => crypto.createHash('sha256').update(s).digest('hex');
 const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30 });
 const wrap = fn => (q, s, n) => fn(q, s, n).catch(e => { console.error(e); s.status(500).json({ error: 'Server error' }); });
-const pub = s => { const o = s.toObject({ flattenMaps: true }); delete o.passwordHash; return o; };
+const pub = s => { const o = s.toObject({ flattenMaps: true }); delete o.passwordHash; delete o.sessions; return o; };
 const paidNow = s => s.payments.some(p => p.month === month());
 const row = s => ({ ...pub(s), ...feeInfo(s), ...studyInfo(s), present: !!s.checkedInAt, attended: s.presentOn.includes(today()) });
 const adm = need('admin', 'super');
@@ -99,7 +99,7 @@ r.get('/seats', need('student', 'admin', 'super'), wrap(async (q, s) =>
   s.json({ occupied: (await Student.find({ status: 'approved' }, 'seat')).map(x => x.seat) })));
 
 /* ---------- Admin ---------- */
-r.get('/admin/students', adm, wrap(async (q, s) => s.json((await Student.find({ status: 'approved' }).sort('seat')).map(row))));
+r.get('/admin/students', adm, wrap(async (q, s) => s.json((await Student.find({ status: 'approved' }, '-photo -sessions').sort('seat')).map(row))));
 r.get('/admin/pending', adm, wrap(async (q, s) => s.json((await Student.find({ status: 'pending' }).sort('createdAt')).map(pub))));
 
 r.post('/admin/students/:id/approve', adm, wrap(async (q, s) => {

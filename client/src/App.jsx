@@ -409,6 +409,7 @@ function Student({ autoAction }) {
     {me.mustChange && <div className="card" style={{ borderLeft: '5px solid var(--gold)' }}>🔑 <b>Your password was reset by the admin.</b> Please change it below to a password only you know.</div>}
     <Leaderboard />
     <FeeHistory me={me} />
+    <MySessions me={me} />
     <IdCard me={me} reload={load} />
     <FeedbackBox />
     <PasswordBox />
@@ -443,6 +444,28 @@ function StudyCard({ me, toggle }) {
       </div>
     </div>
   );
+}
+
+function SessionLog({ rows }) {
+  if (!rows) return <p className="hint">Loading…</p>;
+  if (!rows.length) return <p className="hint">No check-ins in the last 7 days.</p>;
+  const t = d => new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const day = d => new Date(d).toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' });
+  return (
+    <div className="scroll" style={{ maxHeight: 280 }}><table>
+      <thead><tr><th>Date</th><th>Check-in</th><th>Check-out</th><th>Time</th></tr></thead>
+      <tbody>{rows.map((r, i) => (
+        <tr key={i}><td>{day(r.inAt)}</td><td>{t(r.inAt)}</td>
+          <td>{r.open ? <span className="pill ok">Studying now</span> : <>{t(r.outAt)}{r.auto && <small> (auto)</small>}</>}</td>
+          <td>{hm(r.minutes)}</td></tr>))}
+      </tbody></table></div>
+  );
+}
+
+function MySessions({ me }) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => { api('/me/sessions').then(setRows); }, [me.checkedInAt]);          // reload whenever the student checks in or out
+  return <div className="card"><h3>🕘 My check-in history <small style={{ color: 'var(--mute)' }}>(last 7 days)</small></h3><SessionLog rows={rows} /></div>;
 }
 
 function Leaderboard() {
@@ -678,6 +701,8 @@ function Students() {
 
 function Details({ s, close, reload }) {
   const pay = async m => { await api(`/admin/students/${s._id}/fee`, { method: 'POST', body: { month: m } }); reload(); };
+  const [log, setLog] = useState(null);
+  useEffect(() => { api(`/admin/students/${s._id}/sessions`).then(setLog); }, [s._id, s.checkedInAt]);
   const pays = [...s.payments].sort((a, b) => b.month.localeCompare(a.month));
   const last = [...s.payments].sort((a, b) => new Date(b.paidOn) - new Date(a.paidOn))[0];
   const rows = [['Seat', s.seat], ['Shift', SH[s.shift]], ['Preparing for', s.job], ['Email', s.email], ['Mobile', s.phone], ['Joined', String(s.joinedAt).slice(0, 10)],
@@ -690,6 +715,9 @@ function Details({ s, close, reload }) {
       <table><tbody>{rows.map(([k, v]) => <tr key={k}><td style={{ color: 'var(--mute)' }}>{k}</td><td><b>{v}</b></td></tr>)}</tbody></table>
       {s.pendingMonths.length > 0 && <><h4>Unpaid months ({s.pendingMonths.length})</h4>
         {s.pendingMonths.map(m => <div key={m} style={{ padding: '3px 0' }}>{m} <button className="pill ok" onClick={() => pay(m)}>Mark paid</button></div>)}</>}
+      
+      <h4>Check-in history (last 7 days)</h4>
+      <SessionLog rows={log} />
       <h4>Fee history</h4>
       {pays.length ? pays.map(p => (
         <div key={p.month} style={{ padding: '3px 0' }}>{String(p.paidOn).slice(0, 10)} - paid for {p.month}{' '}

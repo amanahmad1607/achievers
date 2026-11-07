@@ -319,4 +319,10 @@ r.post('/admin/slides/:id/move', adm, wrap(async (q, s) => {
 }));
 r.delete('/admin/slides/:id', adm, wrap(async (q, s) => { await Slide.deleteOne({ _id: q.params.id }); s.sendStatus(204); }));
 
+/* ---------- Check-in history (last 7 days) ---------- */
+const sessionRows = st => (st?.sessions || []).slice().sort((a, b) => b.inAt - a.inAt)
+  .map(x => ({ inAt: x.inAt, outAt: x.outAt, auto: !!x.auto, open: !x.outAt, minutes: Math.round(((x.outAt || new Date()) - x.inAt) / 60000) }));
+r.get('/me/sessions', need('student'), wrap(async (q, s) => s.json(sessionRows(await Student.findById(q.user.id, 'sessions')))));
+r.get('/admin/students/:id/sessions', adm, wrap(async (q, s) => s.json(sessionRows(await Student.findById(q.params.id, 'sessions')))));
+
 export default r;

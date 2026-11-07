@@ -3,7 +3,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import mongoose from 'mongoose';
-
+import cron from 'node-cron';
 import routes from './routes.js';
 import extra from './extra.js';
 import { saveWeekly } from './backup.js';
@@ -124,7 +124,7 @@ app.get('/api/cron/attendance-cleanup', verifyCron, async (req, res) => {
     let count = 0;
 
     for (const student of students) {
-      await clockOut(student);
+      await clockOut(student,true);
       await student.save();
       count++;
     }
@@ -143,7 +143,8 @@ app.get('/api/cron/attendance-cleanup', verifyCron, async (req, res) => {
     });
   }
 });
-
+// Keep 30 days of check-in history
+cron.schedule('30 3 * * *', () => Student.updateMany({}, { $pull: { sessions: { inAt: { $lt: new Date(Date.now() - 7 * 864e5) } } } }).catch(console.error));
 // Existing API routes
 app.use('/api', routes);
 app.use('/api', extra);

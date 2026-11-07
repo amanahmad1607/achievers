@@ -24,6 +24,7 @@ export const Student = model('Student', new Schema({
   joinedAt: { type: Date, default: Date.now },
   payments: [{ month: String, paidOn: Date, receiptNo: String }],   // month = "2026-10"
   presentOn: [String],                                              // "YYYY-MM-DD"
+  sessions: [{ _id: false, inAt: Date, outAt: Date, auto: Boolean }],   // check-in and check-out times, last 30 days
   checkedInAt: Date,
   studyMinutes: { type: Map, of: Number, default: {} },
 }, { timestamps: true }));
