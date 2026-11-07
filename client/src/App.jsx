@@ -26,7 +26,7 @@ export default function App() {
         {auth?.role === 'student' && <Student />}
         {(auth?.role === 'admin' || auth?.role === 'super') && <Admin isSuper={auth.role === 'super'} />}
       </main>
-      <footer>© Achievers Study Point. Developed and managed by <b>Aman Ahmad</b></footer>
+      <footer>© Achievers Study Point. Developed and managed by <b>Aman Ahmad</b> & <b>Meraj Alam</b></footer>
       <Analytics />
     </>
   );
