@@ -7,12 +7,14 @@ import QRCode from 'qrcode';
 const SH = { M: 'Morning', E: 'Evening', F: 'Full Day' };
 const JOBS = ['UPSC', 'SSC', 'Banking', 'Railways', 'State PSC', 'Defence', 'Teaching (CTET/TET)', 'NEET', 'JEE', 'GATE', 'Nursing', 'UPP', 'Other'];
 
-// Opening the site with ?checkin=1 (the door QR code) logs the student in and checks them in
-const wantCheckin = new URLSearchParams(window.location.search).get('checkin') === '1';
+// What the QR codes open: ?register=1 shows the registration page, ?checkin=1 and ?checkout=1 log the student in and check them in or out
+const qs = new URLSearchParams(window.location.search);
+const QR_ACTION = qs.get('checkin') === '1' ? 'checkin' : qs.get('checkout') === '1' ? 'checkout' : null;
+const QR_REGISTER = qs.get('register') === '1';
 
 export default function App() {
   const [auth, setAuth] = useState(() => JSON.parse(localStorage.getItem('auth') || 'null'));
-  const [view, setView] = useState(wantCheckin ? 'login' : 'home');
+  const [view, setView] = useState(QR_REGISTER ? 'register' : QR_ACTION ? 'login' : 'home');
   const login = a => { localStorage.setItem('token', a.token); localStorage.setItem('auth', JSON.stringify(a)); setAuth(a); };
   const logout = () => { localStorage.clear(); sessionStorage.clear(); setAuth(null); setView('home'); };
   const label = auth && (auth.role === 'super' ? 'Super Admin' : auth.role === 'admin' ? 'Admin' : auth.name);
@@ -27,7 +29,7 @@ export default function App() {
         {!auth && view === 'home' && <Home go={setView} />}
         {!auth && view === 'login' && <Login onLogin={login} go={setView} />}
         {!auth && view === 'register' && <Register go={setView} />}
-        {auth?.role === 'student' && <Student autoCheckin={wantCheckin} />}
+        {auth?.role === 'student' && <Student autoAction={QR_ACTION} />}
         {(auth?.role === 'admin' || auth?.role === 'super') && <Admin isSuper={auth.role === 'super'} />}
       </main>
       <footer>© Achievers Study Point. Developed and managed by <b>Aman Ahmad</b> & <b>Meraj Alam</b></footer>
@@ -353,17 +355,20 @@ function resizePhoto(file, size = 120) {
 }
 
 /* ---------------- Student dashboard ---------------- */
-function Student({ autoCheckin }) {
+function Student({ autoAction }) {
   const [me, setMe] = useState(null);
   const [occ, setOcc] = useState([]);
   const [info, setInfo] = useState({ terms: '', notice: '' });
   const [terms, setTerms] = useState(!sessionStorage.getItem('terms'));
   const load = async () => { setMe(await api('/me')); setOcc((await api('/seats')).occupied); setInfo(await api('/terms')); };
-  useEffect(() => {
+    useEffect(() => {
     (async () => {
-      if (autoCheckin) {                                   // door QR code: check the student in, once
-        try { const m = await api('/me'); if (!m.checkedInAt) await api('/me/checkin', { method: 'POST' }); } catch { /* ignore */ }
-        window.history.replaceState(null, '', window.location.pathname);   // remove ?checkin=1 so a refresh does not repeat it
+      if (autoAction) {
+        try {
+          const m = await api('/me');
+          if ((autoAction === 'checkin' && !m.checkedInAt) || (autoAction === 'checkout' && m.checkedInAt)) await api('/me/checkin', { method: 'POST' });
+        } catch { /* ignore */ }
+        window.history.replaceState(null, '', window.location.pathname);   // remove the ?... part so a refresh does not repeat it
       }
       load();
     })();
@@ -698,9 +703,12 @@ function Details({ s, close, reload }) {
 
 function QrCodes() {
   const [imgs, setImgs] = useState({});
+  const o = window.location.origin;
   const items = [
-    ['site', 'Open the website', window.location.origin + '/', 'Students scan this to open the site. If they are already logged in, their dashboard opens straight away.'],
-    ['checkin', 'Door check-in', window.location.origin + '/?checkin=1', 'Print this for the entrance. After scanning, the student logs in once and is checked in automatically.'],
+    ['register', 'New student registration', o + '/?register=1', 'Put this on posters and in WhatsApp groups. It opens the registration page directly.'],
+    ['checkin', 'Door check-in', o + '/?checkin=1', 'Print this for the entrance. After scanning, the student logs in once and is checked in automatically.'],
+    ['checkout', 'Door check-out', o + '/?checkout=1', 'Print this for the exit. After scanning, the student is checked out and the study timer stops.'],
+    ['site', 'Open the website', o + '/', 'Opens the site. If the student is already logged in, their dashboard opens straight away.'],
   ];
   useEffect(() => {
     items.forEach(([k, , url]) => QRCode.toDataURL(url, { width: 360, margin: 2 }).then(d => setImgs(i => ({ ...i, [k]: d }))));
