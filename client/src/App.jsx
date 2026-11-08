@@ -180,7 +180,7 @@ function Home({ go }) {
       {h.photo ? <img src={h.photo} alt="Manager" /> : <div className="ph">👤</div>}
       <div className="t"><h3>Manager’s Message</h3><p>{h.manager_msg}</p><b>{h.manager_name}</b><br /><small>{h.manager_role}</small></div>
     </div>
-    {h.notice && <div className="card" style={{ borderLeft: '5px solid var(--gold)' }}><b>📢 Notice Board</b><p style={{ whiteSpace: 'pre-line', marginBottom: 0 }}>{h.notice}</p></div>}
+    {h.notice && <div className="card" style={{ borderLeft: '5px solid var(--alert)' }}><b>📢 Notice Board</b><p style={{ whiteSpace: 'pre-line', marginBottom: 0, color: 'var(--alert)', fontWeight: 600 }}>{h.notice}</p></div>}
     <div className="sec">
       <h3>Facilities</h3>
       <div className="feat">{FACILITIES.map(([i, t, d]) => <div className="card" key={t}><div>{i}</div><b>{t}</b><small>{d}</small></div>)}</div>
@@ -404,7 +404,7 @@ function Student({ autoAction }) {
       <button className="btn" style={{ marginTop: 18 }} onClick={toggle}>{me.checkedInAt ? '⏹ Check Out' : '▶ Check In'}</button>
     </div>
     <StudyCard me={me} toggle={toggle} />
-    {info.notice && <div className="card" style={{ borderLeft: '5px solid var(--gold)' }}><b>📢 Notice board</b><p style={{ whiteSpace: 'pre-line' }}>{info.notice}</p></div>}
+    {info.notice && <div className="card" style={{ borderLeft: '5px solid var(--alert)' }}><b>📢 Notice board</b><p style={{ whiteSpace: 'pre-line', marginBottom: 0, color: 'var(--alert)', fontWeight: 600 }}>{info.notice}</p></div>}
     {owes && <div className="card" style={{ borderLeft: '5px solid var(--bad)' }}>💰 <b>Fee reminder:</b> {me.feeState}. Please pay at the desk.</div>}
     {me.mustChange && <div className="card" style={{ borderLeft: '5px solid var(--gold)' }}>🔑 <b>Your password was reset by the admin.</b> Please change it below to a password only you know.</div>}
     <Leaderboard />

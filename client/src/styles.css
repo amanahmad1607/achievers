@@ -264,3 +264,7 @@ body{overflow-x:hidden}
     font-size: 13px;
   }
 }
+
+
+:root{--alert:#dc2626}
+@media (prefers-color-scheme:dark){:root{--alert:#f87171}}
