@@ -22,7 +22,7 @@ export const Student = model('Student', new Schema({
   emailVerified: Boolean,
   waVerified: Boolean,
   joinedAt: { type: Date, default: Date.now },
-  payments: [{ month: String, paidOn: Date, receiptNo: String }],   // month = "2026-10"
+  payments: [{ month: String, paidOn: Date, receiptNo: String, amount: Number }],   // month = "2026-10"; amount = fee paid that month   // month = "2026-10"
   presentOn: [String],                                              // "YYYY-MM-DD"
   sessions: [{ _id: false, inAt: Date, outAt: Date, auto: Boolean }],   // check-in and check-out times, last 30 days
   checkedInAt: Date,

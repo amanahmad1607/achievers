@@ -63,9 +63,17 @@ export function inWords(amount) {
   if (n % 1e3) parts.push(three(n % 1e3));
   return parts.join(' ');
 }
-async function receiptInfo() {
+async function receiptInfo(p) {
   const [S, H] = [await getSettings(), await getHome()];
-  return { amount: S.fee_amount, terms: S.receipt_terms, address: H.address, phone: H.phone, email: H.email, manager: H.manager_name };
+
+  return {
+    amount: p?.amount ?? S.fee_amount,
+    terms: S.receipt_terms,
+    address: H.address,
+    phone: H.phone,
+    email: H.email,
+    manager: H.manager_name
+  };
 }
 
 export function receiptPdf(res, st, p, info) {
@@ -211,12 +219,12 @@ const payment = (st, month) => st?.payments.find(x => x.month === month);
 r.get('/me/receipt/:month', need('student'), wrap(async (q, s) => {
   const st = await Student.findById(q.user.id), p = payment(st, q.params.month);
   if (!p) return s.sendStatus(404);
-  receiptPdf(s, st, p, await receiptInfo());
+  receiptPdf(s, st, p, await receiptInfo(p));
 }));
 r.get('/admin/students/:id/receipt/:month', adm, wrap(async (q, s) => {
   const st = await Student.findById(q.params.id), p = payment(st, q.params.month);
   if (!p) return s.sendStatus(404);
-  receiptPdf(s, st, p, await receiptInfo());
+  receiptPdf(s, st, p, await receiptInfo(p));
 }));
 
 /* ---------- Student photo and ID card (credit-card size, QR holds the ID number only) ---------- */
@@ -325,4 +333,11 @@ const sessionRows = st => (st?.sessions || []).slice().sort((a, b) => b.inAt - a
 r.get('/me/sessions', need('student'), wrap(async (q, s) => s.json(sessionRows(await Student.findById(q.user.id, 'sessions')))));
 r.get('/admin/students/:id/sessions', adm, wrap(async (q, s) => s.json(sessionRows(await Student.findById(q.params.id, 'sessions')))));
 
+r.patch('/admin/students/:id/payments/:month', adm, wrap(async (q, s) => {
+  const amount = Number(q.body.amount);
+  if (!(amount >= 0) || amount > 100000) return s.status(400).json({ error: 'Enter a valid amount' });
+  const st = await Student.findById(q.params.id), p = st?.payments.find(x => x.month === q.params.month);
+  if (!p) return s.sendStatus(404);
+  p.amount = amount; await st.save(); s.json({ ok: true });
+}));
 export default r;

@@ -129,7 +129,7 @@ r.post('/admin/students/:id/fee', adm, wrap(async (q, s) => {          // toggle
   if (i >= 0) st.payments.splice(i, 1);
   else {
     const c = await Counter.findOneAndUpdate({ _id: 'receipt' }, { $inc: { n: 1 } }, { upsert: true, new: true });
-    st.payments.push({ month: m, paidOn: new Date(), receiptNo: 'ACH-' + String(c.n).padStart(4, '0') });
+     st.payments.push({ month: m, paidOn: new Date(), receiptNo: 'ACH-' + String(c.n).padStart(4, '0'), amount: Number((await getSettings()).fee_amount) || 0 });
   }
   await st.save(); s.json(row(st));
 }));

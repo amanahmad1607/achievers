@@ -492,7 +492,7 @@ function FeeHistory({ me }) {
   return (
     <div className="card"><h3>🧾 Fee History</h3>
       {pays.length ? pays.map(p => (
-        <div key={p.month} style={{ padding: '3px 0' }}>{String(p.paidOn).slice(0, 10)} - paid for {p.month}{' '}
+        <div key={p.month} style={{ padding: '3px 0' }}>{String(p.paidOn).slice(0, 10)} - paid for {p.month}{p.amount != null && ` - ₹${p.amount}`}{' '}
           <button className="pill ok" onClick={() => download(`/me/receipt/${p.month}`, `receipt-${p.receiptNo || p.month}.pdf`)}>Receipt</button></div>
       )) : 'No payments recorded yet.'}
     </div>
@@ -720,8 +720,14 @@ function Details({ s, close, reload }) {
       <SessionLog rows={log} />
       <h4>Fee history</h4>
       {pays.length ? pays.map(p => (
-        <div key={p.month} style={{ padding: '3px 0' }}>{String(p.paidOn).slice(0, 10)} - paid for {p.month}{' '}
-          <button className="pill ok" onClick={() => download(`/admin/students/${s._id}/receipt/${p.month}`, `receipt-${p.receiptNo || p.month}.pdf`)}>Receipt</button></div>
+        <div key={p.month} style={{ padding: '3px 0' }}>{String(p.paidOn).slice(0, 10)} - paid for {p.month} - {p.amount != null ? `₹${p.amount}` : 'amount not saved'}{' '}
+          <button className="pill ok" onClick={() => download(`/admin/students/${s._id}/receipt/${p.month}`, `receipt-${p.receiptNo || p.month}.pdf`)}>Receipt</button>{' '}
+          <button className="pill ok" onClick={async () => {
+            const v = prompt(`Amount paid for ${p.month} (Rs.)`, p.amount ?? '');
+            if (v === null || v.trim() === '') return;
+            await api(`/admin/students/${s._id}/payments/${p.month}`, { method: 'PATCH', body: { amount: +v } });
+            reload();
+          }}>Edit amount</button></div>
       )) : <p className="hint">No payments recorded.</p>}
       <button className="btn" onClick={() => download(`/admin/students/${s._id}/idcard`, 'idcard.pdf')}>🪪 ID Card</button>
       <button className="btn sec" onClick={close}>Close</button>
